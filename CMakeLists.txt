@@ -26,17 +26,18 @@ if (NOT CMAKE_BUILD_TYPE)
 	set(CMAKE_BUILD_TYPE Release)
 endif ()
 
+#! Add external packages
+set(CMAKE_MODULE_PATH ${CMAKE_MODULE_PATH} ${CMAKE_CURRENT_SOURCE_DIR}/cmake)
+find_package(FUSE REQUIRED)
+
 #! Include headers
 include_directories(include)
 
 #! Project source compilation
 
-add_executable(${PROJECT_NAME} src/ucutag.cpp include/ucutag.h)
+#add_executable(${PROJECT_NAME} src/ucutag.cpp include/ucutag.h)
+add_executable(${PROJECT_NAME} src/tagfs.cpp)
 
-
-#! Add external packages
-set(CMAKE_MODULE_PATH ${CMAKE_MODULE_PATH} ${CMAKE_CURRENT_SOURCE_DIR}/cmake)
-find_package(FUSE REQUIRED)
 
 # REQUIRED FOR FUSE
 set(CMAKE_CXX_FLAGS ${CMAKE_CXX_FLAGS} "-D_FILE_OFFSET_BITS=64")
