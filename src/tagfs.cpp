@@ -51,39 +51,13 @@
 
 #include <sys/file.h> /* flock(2) */
 
-
-#include <string>
-#include <unordered_map>
-#include <unordered_set>
-
-typedef struct tag_t {
-    std::size_t id = 0;
-    std::size_t type = 0;
-    std::string name{};
-
-} tag_t;
+#include <TagFS.h>
 
 struct xmp_dirp {
     DIR *dp;
     struct dirent *entry;
     off_t offset;
 };
-
-template<>
-struct std::hash<tag_t> {
-    std::size_t operator()(const tag_t &k) const {
-        return ((hash<string>()(k.name) ^ (hash<std::size_t>()(k.id) << 1)) >> 1) ^ (hash<std::size_t>()(k.type) << 1);
-    }
-};
-
-
-typedef std::unordered_map<std::size_t, std::unordered_set<tag_t>> inodeTagMap_t;
-typedef std::unordered_map<tag_t, std::unordered_set<std::size_t>> tagInodeMap_t;
-typedef std::unordered_map<std::size_t, std::string> inodeFilenameMap_t;
-
-static tagInodeMap_t tagInodeMap{};
-static inodeTagMap_t inodeTagMap{};
-static inodeFilenameMap_t inodeFilenameMap{};
 
 // TODO: handle path correctly
 static int xmp_getattr(const char *path, struct stat *stbuf) {
