@@ -52,6 +52,7 @@
 #include <sys/file.h> /* flock(2) */
 
 #include <TagFS.h>
+TagFS tagFS;
 
 struct xmp_dirp {
     DIR *dp;
@@ -123,62 +124,77 @@ static inline struct xmp_dirp *get_dirp(struct fuse_file_info *fi) {
 // TODO: change inner logic since we have only root dir
 static int xmp_readdir(const char *path, void *buf, fuse_fill_dir_t filler,
                        off_t offset, struct fuse_file_info *fi) {
-    struct xmp_dirp *d = get_dirp(fi);
-
-    (void) path;
-    if (offset != d->offset) {
-#ifndef __FreeBSD__
-        seekdir(d->dp, offset);
-#else
-        /* Subtract the one that we add when calling
-           telldir() below */
-        seekdir(d->dp, offset-1);
-#endif
-        d->entry = nullptr;
-        d->offset = offset;
+    tagvec tags = tagFS.parse_tags(path);
+    inodeset inodes;
+    for (const auto &tag: tags) {
+        inodes.insert(tagFS.tagInodeMap[tag].begin(), tagFS.tagInodeMap[tag].end());
     }
-    while (true) {
+
+    for (const auto &inode: inodes) {
         struct stat st{};
-        off_t nextoff;
-        if (!d->entry) {
-            d->entry = readdir(d->dp);
-            if (!d->entry)
-                break;
-        }
-#ifdef HAVE_FSTATAT
-        if (flags & FUSE_READDIR_PLUS) {
-            int res;
-
-            res = fstatat(dirfd(d->dp), d->entry->d_name, &st,
-                      AT_SYMLINK_NOFOLLOW);
-            if (res != -1)
-                fill_flags |= FUSE_FILL_DIR_PLUS;
-        }
-#endif
-//        if (!(fill_flags & FUSE_FILL_DIR_PLUS)) {
-//            memset(&st, 0, sizeof(st));
-//            st.st_ino = d->entry->d_ino;
-//            st.st_mode = d->entry->d_type << 12;
-//        }
-
-        memset(&st, 0, sizeof(st));
-        st.st_ino = d->entry->d_ino;
-        st.st_mode = d->entry->d_type << 12;
-
-        nextoff = telldir(d->dp);
-#ifdef __FreeBSD__
-        /* Under FreeBSD, telldir() may return 0 the first time
-           it is called. But for libfuse, an offset of zero
-           means that offsets are not supported, so we shift
-           everything by one. */
-        nextoff++;
-#endif
-        if (filler(buf, d->entry->d_name, &st, nextoff))
-            break;
-
-        d->entry = nullptr;
-        d->offset = nextoff;
+        lstat(std::to_string(inode).c_str(), &st);      // TODO: error handling
+        filler(buf, tagFS.inodeFilenameMap[inode].c_str(), &st, 0);
     }
+//
+//
+//
+//
+//    struct xmp_dirp *d = get_dirp(fi);
+//
+//    (void) path;
+//    if (offset != d->offset) {
+//#ifndef __FreeBSD__
+//        seekdir(d->dp, offset);
+//#else
+//        /* Subtract the one that we add when calling
+//           telldir() below */
+//        seekdir(d->dp, offset-1);
+//#endif
+//        d->entry = nullptr;
+//        d->offset = offset;
+//    }
+//    while (true) {
+//        struct stat st{};
+//        off_t nextoff;
+//        if (!d->entry) {
+//            d->entry = readdir(d->dp);
+//            if (!d->entry)
+//                break;
+//        }
+//#ifdef HAVE_FSTATAT
+//        if (flags & FUSE_READDIR_PLUS) {
+//            int res;
+//
+//            res = fstatat(dirfd(d->dp), d->entry->d_name, &st,
+//                      AT_SYMLINK_NOFOLLOW);
+//            if (res != -1)
+//                fill_flags |= FUSE_FILL_DIR_PLUS;
+//        }
+//#endif
+////        if (!(fill_flags & FUSE_FILL_DIR_PLUS)) {
+////            memset(&st, 0, sizeof(st));
+////            st.st_ino = d->entry->d_ino;
+////            st.st_mode = d->entry->d_type << 12;
+////        }
+//
+//        memset(&st, 0, sizeof(st));
+//        st.st_ino = d->entry->d_ino;
+//        st.st_mode = d->entry->d_type << 12;
+//
+//        nextoff = telldir(d->dp);
+//#ifdef __FreeBSD__
+//        /* Under FreeBSD, telldir() may return 0 the first time
+//           it is called. But for libfuse, an offset of zero
+//           means that offsets are not supported, so we shift
+//           everything by one. */
+//        nextoff++;
+//#endif
+//        if (filler(buf, d->entry->d_name, &st, nextoff))
+//            break;
+//
+//        d->entry = nullptr;
+//        d->offset = nextoff;
+//    }
 
     return 0;
 }
@@ -575,31 +591,43 @@ static off_t xmp_lseek(const char *path, off_t off, int whence, struct fuse_file
     return res;
 }
 
-static const struct fuse_operations xmp_oper = {
-//        .init       = xmp_init,
+void *xmp_init(struct fuse_conn_info *conn) {
+#ifdef __APPLE__
+    FUSE_ENABLE_SETVOLNAME(conn);
+    FUSE_ENABLE_XTIMES(conn);
+#endif
+    return nullptr;
+}
+
+void
+xmp_destroy(void *userdata) {}
+
+static struct fuse_operations xmp_oper = {
         .getattr    = xmp_getattr,
-        .readlink    = xmp_readlink,
-        .mknod        = xmp_mknod,
-        .mkdir        = xmp_mkdir,
-        .unlink        = xmp_unlink,
-        .rmdir        = xmp_rmdir,
+        .readlink   = xmp_readlink,
+        .mknod      = xmp_mknod,
+        .mkdir      = xmp_mkdir,
+        .unlink     = xmp_unlink,
+        .rmdir      = xmp_rmdir,
         .symlink    = xmp_symlink,
-        .rename        = xmp_rename,
-        .link        = xmp_link,
-        .chmod        = xmp_chmod,
-        .chown        = xmp_chown,
-        .truncate    = xmp_truncate,
-        .open        = xmp_open,
-        .read        = xmp_read,
-        .write        = xmp_write,
-        .statfs        = xmp_statfs,
-        .flush        = xmp_flush,
+        .rename     = xmp_rename,
+        .link       = xmp_link,
+        .chmod      = xmp_chmod,
+        .chown      = xmp_chown,
+        .truncate   = xmp_truncate,
+        .open       = xmp_open,
+        .read       = xmp_read,
+        .write      = xmp_write,
+        .statfs     = xmp_statfs,
+        .flush      = xmp_flush,
         .release    = xmp_release,
-        .fsync        = xmp_fsync,
+        .fsync      = xmp_fsync,
         .opendir    = xmp_opendir,
         .readdir    = xmp_readdir,
-        .releasedir    = xmp_releasedir,
-        .access        = xmp_access,
+        .releasedir = xmp_releasedir,
+        .init       = xmp_init,
+        .destroy	= xmp_destroy,
+        .access     = xmp_access,
 
 #ifdef HAVE_UTIMENSAT
         .utimens	= xmp_utimens,

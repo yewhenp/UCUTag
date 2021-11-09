@@ -1,7 +1,7 @@
 #include "TagFS.h"
 
-tagsvec TagFS::parse_tags(char *path) {
-    tagsvec res;
+tagvec TagFS::parse_tags(const char *path) {
+    tagvec res;
     auto spath = std::string(path);
     auto splitted = split(spath, "/");
     std::transform(splitted.begin(), splitted.end(), std::back_inserter(res),

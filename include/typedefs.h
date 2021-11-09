@@ -15,6 +15,13 @@ typedef struct tag_t {
     std::string name{};
 } tag_t;
 
+template<>
+struct std::hash<tag_t> {
+    std::size_t operator()(const tag_t &k) const {
+        return ((hash<string>()(k.name) ^ (hash<std::size_t>()(k.id) << 1)) >> 1) ^ (hash<std::size_t>()(k.type) << 1);
+    }
+};
+
 template <class T>
 std::ostream& operator<<(std::ostream& os, const std::vector<T>& v) {
     copy(v.begin(), v.end(), std::ostream_iterator<T>(os, ","));
@@ -27,15 +34,18 @@ std::ostream& operator<<(std::ostream &os, const tag_t &tag) {
     return os;
 }
 
+// for convenience
+typedef std::unordered_set<tag_t> tagset;
+typedef std::vector<tag_t> tagvec;
+typedef std::vector<std::string> strvec;
+typedef std::unordered_set<std::size_t> inodeset;
+typedef std::vector<std::size_t> inodevec;
+
 // essential data structures for fs
-typedef std::unordered_map<std::size_t, std::unordered_set<tag_t>> inodeTagMap_t;
-typedef std::unordered_map<tag_t, std::unordered_set<std::size_t>> tagInodeMap_t;
+typedef std::unordered_map<std::size_t, tagset> inodeTagMap_t;
+typedef std::unordered_map<tag_t, inodeset> tagInodeMap_t;
 typedef std::unordered_map<std::size_t, std::string> inodeFilenameMap_t;
 typedef std::unordered_map<std::string, tag_t> tagNameTag_t;
 
-// for convenience
-typedef std::unordered_set<tag_t> tagsset;
-typedef std::vector<tag_t> tagsvec;
-typedef std::vector<std::string> strvec;
 
 #endif //UCUTAG_PROJECT_TYPEDEFS_H
