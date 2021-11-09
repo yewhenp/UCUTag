@@ -60,35 +60,36 @@ struct xmp_dirp {
     off_t offset;
 };
 
-// TODO: handle path correctly
 static int xmp_getattr(const char *path, struct stat *stbuf) {
     int res;
 
-    (void) path;
-    res = lstat(path, stbuf);
+    tagvec tag_vec = tagFS.parse_tags(path);
+    std::string file_path = tagFS.get_file_real_path(tag_vec);
+    res = lstat(file_path.c_str(), stbuf);
     if (res == -1)
         return -errno;
 
     return 0;
 }
 
-// TODO: handle path correctly
 static int xmp_access(const char *path, int mask) {
     int res;
 
-    res = access(path, mask);
+    tagvec tag_vec = tagFS.parse_tags(path);
+    std::string file_path = tagFS.get_file_real_path(tag_vec);
+    res = access(file_path.c_str(), mask);
     if (res == -1)
         return -errno;
 
     return 0;
 }
 
-
-// TODO: handle path correctly
 static int xmp_readlink(const char *path, char *buf, size_t size) {
     int res;
 
-    res = readlink(path, buf, size - 1);
+    tagvec tag_vec = tagFS.parse_tags(path);
+    std::string file_path = tagFS.get_file_real_path(tag_vec);
+    res = readlink(file_path.c_str(), buf, size - 1);
     if (res == -1)
         return -errno;
 
@@ -208,16 +209,38 @@ static int xmp_releasedir(const char *path, struct fuse_file_info *fi) {
     return 0;
 }
 
-// TODO: handle path correctly and add additional logic when dir is created (replace with tag creation)
 static int xmp_mknod(const char *path, mode_t mode, dev_t rdev) {
     int res;
 
-    if (S_ISFIFO(mode))
-        res = mkfifo(path, mode);
-    else
-        res = mknod(path, mode, rdev);
-    if (res == -1)
+    tagvec tag_vec = tagFS.parse_tags(path);
+    inodeset file_inode_set = tagFS.get_tag_set(tag_vec);
+
+    if (!file_inode_set.empty()) {
+        errno = EEXIST;
+#ifdef DEBUG
+        std::cerr << "path already exist: " << path << std::endl;
+#endif
         return -errno;
+    }
+
+    if (S_ISDIR(mode)) {
+        // TODO: add additional logic when dir is created (replace with tag creation)
+    }
+    else {
+        inode new_inode = tagFS.get_new_inode();
+        std::string new_path = std::to_string(new_inode);
+
+        if (S_ISFIFO(mode)) {
+            res = mkfifo(new_path.c_str(), mode);
+        }
+        else
+            res = mknod(new_path.c_str(), mode, rdev);
+        if (res == -1)
+            return -errno;
+
+        
+    }
+
 
     return 0;
 }

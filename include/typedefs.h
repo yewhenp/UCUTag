@@ -9,9 +9,12 @@
 #include <ostream>
 #include <iterator>
 
+#define TAG_TYPE_REGULAR 0
+#define TAG_TYPE_FILE 1
+
 typedef struct tag_t {
     std::size_t id = 0;
-    std::size_t type = 0;
+    std::size_t type = TAG_TYPE_REGULAR;
     std::string name{};
 
     bool operator==(const tag_t &other) const {
@@ -41,11 +44,12 @@ std::ostream& operator<<(std::ostream &os, const tag_t &tag) {
 }
 
 // for convenience
+typedef std::size_t inode;
 typedef std::unordered_set<tag_t> tagset;
 typedef std::vector<tag_t> tagvec;
 typedef std::vector<std::string> strvec;
-typedef std::unordered_set<std::size_t> inodeset;
-typedef std::vector<std::size_t> inodevec;
+typedef std::unordered_set<inode> inodeset;
+typedef std::vector<inode> inodevec;
 
 // essential data structures for fs
 typedef std::unordered_map<std::size_t, tagset> inodeTagMap_t;
