@@ -127,6 +127,7 @@ static int xmp_readdir(const char *path, void *buf, fuse_fill_dir_t filler,
     tagvec tags = tagFS.parse_tags(path);
     inodeset inodes;
     for (const auto &tag: tags) {
+        auto inode = tagFS.tagInodeMap[tag];
         inodes.insert(tagFS.tagInodeMap[tag].begin(), tagFS.tagInodeMap[tag].end());
     }
 
