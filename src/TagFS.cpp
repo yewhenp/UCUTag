@@ -7,7 +7,17 @@ tagvec TagFS::parse_tags(const char *path) {
     std::transform(splitted.begin(), splitted.end(), std::back_inserter(res),
                    [this](const std::string &name) -> tag_t {return tagNameTag[name];});
 #ifdef DEBUG
-    std::cout << "Parsed path: " << path << ": " << res << std::endl;
+//    std::cout << "Parsed path: " << path << ": " << res << std::endl;
 #endif
     return res;
 }
+
+inodeset TagFS::select(const char *path, bool cache) {
+    tagvec tags = tagFS.parse_tags(path);
+    inodeset inodes;
+    for (const auto &tag: tags) {
+        inodes.insert(tagInodeMap[tag].begin(), tagInodeMap[tag].end());
+    }
+    return inodes;
+}
+

@@ -11,6 +11,7 @@ class TagFS {
 public:
     TagFS()= default;;
     tagvec parse_tags(const char *path);
+    inodeset select(const char *path, bool cache = false);
 
 public:
     tagInodeMap_t tagInodeMap{};
