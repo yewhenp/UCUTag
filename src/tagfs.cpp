@@ -44,6 +44,9 @@
 #include <dirent.h>
 #include <cerrno>
 #include <ctime>
+#include <filesystem>
+
+namespace fs = std::filesystem;
 
 #ifdef HAVE_SETXATTR
 #include <sys/xattr.h>
@@ -122,81 +125,82 @@ static inline struct xmp_dirp *get_dirp(struct fuse_file_info *fi) {
 }
 
 
+
 // TODO: change inner logic since we have only root dir
 static int xmp_readdir(const char *path, void *buf, fuse_fill_dir_t filler,
                        off_t offset, struct fuse_file_info *fi) {
-    tagvec tags = tagFS.parse_tags(path);
-    inodeset inodes;
-    for (const auto &tag: tags) {
-        auto inode = tagFS.tagInodeMap[tag];
-        inodes.insert(tagFS.tagInodeMap[tag].begin(), tagFS.tagInodeMap[tag].end());
-    }
-
-    for (const auto &inode: inodes) {
-        struct stat st{};
-        lstat(std::to_string(inode).c_str(), &st);      // TODO: error handling
-        filler(buf, tagFS.inodeFilenameMap[inode].c_str(), &st, 0);
-    }
-//
-//
-//
-//
-//    struct xmp_dirp *d = get_dirp(fi);
-//
-//    (void) path;
-//    if (offset != d->offset) {
-//#ifndef __FreeBSD__
-//        seekdir(d->dp, offset);
-//#else
-//        /* Subtract the one that we add when calling
-//           telldir() below */
-//        seekdir(d->dp, offset-1);
-//#endif
-//        d->entry = nullptr;
-//        d->offset = offset;
+//    tagvec tags = tagFS.parse_tags(path);
+//    inodeset inodes;
+//    for (const auto &tag: tags) {
+//        auto inode = tagFS.tagInodeMap[tag];
+//        inodes.insert(tagFS.tagInodeMap[tag].begin(), tagFS.tagInodeMap[tag].end());
 //    }
-//    while (true) {
+//
+//    for (const auto &inode: inodes) {
 //        struct stat st{};
-//        off_t nextoff;
-//        if (!d->entry) {
-//            d->entry = readdir(d->dp);
-//            if (!d->entry)
-//                break;
-//        }
-//#ifdef HAVE_FSTATAT
-//        if (flags & FUSE_READDIR_PLUS) {
-//            int res;
-//
-//            res = fstatat(dirfd(d->dp), d->entry->d_name, &st,
-//                      AT_SYMLINK_NOFOLLOW);
-//            if (res != -1)
-//                fill_flags |= FUSE_FILL_DIR_PLUS;
-//        }
-//#endif
-////        if (!(fill_flags & FUSE_FILL_DIR_PLUS)) {
-////            memset(&st, 0, sizeof(st));
-////            st.st_ino = d->entry->d_ino;
-////            st.st_mode = d->entry->d_type << 12;
-////        }
-//
-//        memset(&st, 0, sizeof(st));
-//        st.st_ino = d->entry->d_ino;
-//        st.st_mode = d->entry->d_type << 12;
-//
-//        nextoff = telldir(d->dp);
-//#ifdef __FreeBSD__
-//        /* Under FreeBSD, telldir() may return 0 the first time
-//           it is called. But for libfuse, an offset of zero
-//           means that offsets are not supported, so we shift
-//           everything by one. */
-//        nextoff++;
-//#endif
-//        if (filler(buf, d->entry->d_name, &st, nextoff))
-//            break;
-//
-//        d->entry = nullptr;
-//        d->offset = nextoff;
+//        lstat(std::to_string(inode).c_str(), &st);      // TODO: error handling
+//        filler(buf, tagFS.inodeFilenameMap[inode].c_str(), &st, 0);
 //    }
+
+
+
+
+    struct xmp_dirp *d = get_dirp(fi);
+
+    (void) path;
+    if (offset != d->offset) {
+#ifndef __FreeBSD__
+        seekdir(d->dp, offset);
+#else
+        /* Subtract the one that we add when calling
+           telldir() below */
+        seekdir(d->dp, offset-1);
+#endif
+        d->entry = nullptr;
+        d->offset = offset;
+    }
+    while (true) {
+        struct stat st{};
+        off_t nextoff;
+        if (!d->entry) {
+            d->entry = readdir(d->dp);
+            if (!d->entry)
+                break;
+        }
+#ifdef HAVE_FSTATAT
+        if (flags & FUSE_READDIR_PLUS) {
+            int res;
+
+            res = fstatat(dirfd(d->dp), d->entry->d_name, &st,
+                      AT_SYMLINK_NOFOLLOW);
+            if (res != -1)
+                fill_flags |= FUSE_FILL_DIR_PLUS;
+        }
+#endif
+//        if (!(fill_flags & FUSE_FILL_DIR_PLUS)) {
+//            memset(&st, 0, sizeof(st));
+//            st.st_ino = d->entry->d_ino;
+//            st.st_mode = d->entry->d_type << 12;
+//        }
+
+        memset(&st, 0, sizeof(st));
+        st.st_ino = d->entry->d_ino;
+        st.st_mode = d->entry->d_type << 12;
+
+        nextoff = telldir(d->dp);
+#ifdef __FreeBSD__
+        /* Under FreeBSD, telldir() may return 0 the first time
+           it is called. But for libfuse, an offset of zero
+           means that offsets are not supported, so we shift
+           everything by one. */
+        nextoff++;
+#endif
+        if (filler(buf, d->entry->d_name, &st, nextoff))
+            break;
+
+        d->entry = nullptr;
+        d->offset = nextoff;
+    }
 
     return 0;
 }
@@ -677,8 +681,34 @@ static struct fuse_operations xmp_oper = {
 #endif
 };
 
+void init_from_dir(const std::string &root){
+    std::size_t inode_count = 0;
+    for(auto& p: fs::recursive_directory_iterator(root, std::filesystem::directory_options::skip_permission_denied)){
+        tag_t tag;
+        tag.id = inode_count;
+        tag.name = *(--p.path().end());
+        if(!std::filesystem::is_directory(p)){
+            tag.type = TAG_NAME;
+        } else {
+            tag.type = FILE_NAME;
+            tagFS.inodeFilenameMap.insert({inode_count, tag.name});
+        }
+        tagFS.inodeTagMap[inode_count].insert(tag);
+        tagFS.tagInodeMap[tag].insert(inode_count);
+        tagFS.tagNameTag.insert({tag.name, tag});
+        inode_count++;
+    }
+
+    std::cout << inode_count << std::endl;
+    std::cout << tagFS.inodeTagMap.size() << std::endl;
+    std::cout << tagFS.tagInodeMap.size() << std::endl;
+    std::cout << tagFS.tagNameTag.size() << std::endl;
+    std::cout << tagFS.inodeFilenameMap.size() << std::endl;
+}
+
 int main(int argc, char *argv[]) {
     umask(0);
     return fuse_main(argc, argv, &xmp_oper, nullptr);
+
 }
 

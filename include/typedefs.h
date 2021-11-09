@@ -31,6 +31,9 @@ struct std::hash<tag_t> {
     }
 };
 
+
+enum { FILE_NAME, TAG_NAME, TIME} tagType;
+
 template <class T>
 std::ostream& operator<<(std::ostream& os, const std::vector<T>& v) {
     copy(v.begin(), v.end(), std::ostream_iterator<T>(os, ","));
@@ -38,10 +41,7 @@ std::ostream& operator<<(std::ostream& os, const std::vector<T>& v) {
 }
 
 
-std::ostream& operator<<(std::ostream &os, const tag_t &tag) {
-    os << "Tag(id=" << tag.id << ", type=" << tag.type << ", name=" << tag.name << ")";
-    return os;
-}
+std::ostream& operator<<(std::ostream &os, const tag_t &tag);
 
 // for convenience
 typedef std::size_t inode;

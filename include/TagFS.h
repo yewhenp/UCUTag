@@ -15,6 +15,7 @@ public:
     inodeset get_tag_set(tagvec& tags);
     inode get_new_inode() const;
     void create_new_file(tagvec& tags, inode new_inode);
+    inodeset select(const char *path, bool cache = false);
 
 public:
     tagInodeMap_t tagInodeMap{};

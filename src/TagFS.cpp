@@ -7,7 +7,7 @@ tagvec TagFS::parse_tags(const char *path) {
     std::transform(splitted.begin(), splitted.end(), std::back_inserter(res),
                    [this](const std::string &name) -> tag_t {return tagNameTag[name];});
 #ifdef DEBUG
-    std::cout << "Parsed path: " << path << ": " << res << std::endl;
+//    std::cout << "Parsed path: " << path << ": " << res << std::endl;
 #endif
     return res;
 }
@@ -61,9 +61,31 @@ void TagFS::create_new_file(tagvec &tags, inode new_inode) {
 
     inodeFilenameMap[new_inode] = tags[tags.size() - 1].name;
     inodeTagMap[new_inode] = set;
-    for (auto& tag : tags) {
+    for (auto &tag: tags) {
         tagInodeMap[tag].insert(new_inode);
         tagNameTag[tag.name] = tag;
     }
+}
+
+inodeset TagFS::select(const char *path, bool cache) {
+    tagvec tags = tagFS.parse_tags(path);
+    inodeset intersect;
+    bool i = true;
+    for (const auto &tag: tags) {
+        auto inodes = tagInodeMap[tag];
+        if (i) {
+            intersect.insert(inodes.begin(), inodes.end());
+            i = false;
+        } else {
+            inodeset c;
+            for (auto& inode : intersect) {
+                if (inodes.count(inode) > 0) {
+                    c.insert(inode);
+                }
+            }
+            intersect = c;
+        }
+    }
+    return intersect;
 }
 
