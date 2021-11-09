@@ -12,21 +12,27 @@ tagvec TagFS::parse_tags(const char *path) {
     return res;
 }
 
-std::string TagFS::get_file_real_path(tagvec& tags) {
+inode TagFS::get_file_inode(tagvec& tags) {
     inodeset file_inode_set = get_tag_set(tags);
     if (file_inode_set.size() > 1) {
 #ifdef DEBUG
         std::cerr << "got multiple inodes in file tags: " << tags << std::endl;
 #endif
-        return "-1";
+        return static_cast<size_t>(-1);
     }
     if (file_inode_set.empty()) {
 #ifdef DEBUG
         std::cout << "got empty inode set in file tags: " << tags << std::endl;
 #endif
-        return "-1";
+        return static_cast<size_t>(-1);
     }
     inode file_inode = *file_inode_set.begin();
+    return file_inode;
+}
+
+
+std::string TagFS::get_file_real_path(tagvec& tags) {
+    inode file_inode = get_file_inode(tags);
     return std::to_string(file_inode);
 }
 
@@ -55,9 +61,16 @@ inode TagFS::get_new_inode() const {
     return inodeFilenameMap.size();
 }
 
-void TagFS::create_new_file(tagvec &tags, inode new_inode) {
+int TagFS::create_new_file(tagvec &tags, inode new_inode) {
     tags[tags.size() - 1].type = TAG_TYPE_FILE;
     tagset set(tags.begin(), tags.end());
+
+    if (tagInodeMap.find(tags[tags.size() - 1]) != tagInodeMap.end()) {
+#ifdef DEBUG
+        std::cout << "file exist: " << tags << std::endl;
+#endif
+        return -1;
+    }
 
     inodeFilenameMap[new_inode] = tags[tags.size() - 1].name;
     inodeTagMap[new_inode] = set;
@@ -65,6 +78,7 @@ void TagFS::create_new_file(tagvec &tags, inode new_inode) {
         tagInodeMap[tag].insert(new_inode);
         tagNameTag[tag.name] = tag;
     }
+    return 0;
 }
 
 inodeset TagFS::select(const char *path, bool cache) {
@@ -87,5 +101,26 @@ inodeset TagFS::select(const char *path, bool cache) {
         }
     }
     return intersect;
+}
+
+int TagFS::delete_file(tagvec &tags, inode file_inode) {
+    if (tags[tags.size() - 1].type != TAG_TYPE_FILE) {
+#ifdef DEBUG
+        std::cout << "last index was not file: " << tags << std::endl;
+#endif
+        return -1;
+    }
+
+    inodeFilenameMap.erase(file_inode);
+    inodeTagMap.erase(file_inode);
+    for (auto &tag: tags) {
+        tagInodeMap[tag].erase(file_inode);
+        if (tagInodeMap[tag].empty()) {
+            tagNameTag.erase(tag.name);
+            tagInodeMap.erase(tag);
+        }
+    }
+
+    return 0;
 }
 

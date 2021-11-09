@@ -66,6 +66,17 @@ struct xmp_dirp {
 static int xmp_getattr(const char *path, struct stat *stbuf) {
     int res;
 
+    if ( strcmp( path, "/" ) == 0 )
+    {
+        stbuf->st_uid = getuid(); // The owner of the file/directory is the user who mounted the filesystem
+        stbuf->st_gid = getgid(); // The group of the file/directory is the same as the group of the user who mounted the filesystem
+        stbuf->st_atime = time( nullptr ); // The last "a"ccess of the file/directory is right now
+        stbuf->st_mtime = time( nullptr ); // The last "m"odification of the file/directory is right now
+        stbuf->st_mode = S_IFDIR | 0755;
+        stbuf->st_nlink = 2; // Why "two" hardlinks instead of "one"? The answer is here: http://unix.stackexchange.com/a/101536
+        return 0;
+    }
+
     tagvec tag_vec = tagFS.parse_tags(path);
     std::string file_path = tagFS.get_file_real_path(tag_vec);
     res = lstat(file_path.c_str(), stbuf);
@@ -237,14 +248,20 @@ static int xmp_mknod(const char *path, mode_t mode, dev_t rdev) {
         if (S_ISFIFO(mode)) {
             res = mkfifo(new_path.c_str(), mode);
         }
-        else
+        else {
             res = mknod(new_path.c_str(), mode, rdev);
-        if (res == -1)
+        }
+        if (res == -1) {
             return -errno;
+        }
 
-        
+        if (tagFS.create_new_file(tag_vec, new_inode) != 0) {
+            unlink(new_path.c_str());
+            errno = EEXIST;
+            return -errno;
+        }
+
     }
-
 
     return 0;
 }
@@ -261,11 +278,18 @@ static int xmp_mkdir(const char *path, mode_t mode) {
 }
 
 
-// TODO: handle path correctly
 static int xmp_unlink(const char *path) {
     int res;
+    tagvec tag_vec = tagFS.parse_tags(path);
+    std::string file_path = tagFS.get_file_real_path(tag_vec);
+    inode file_inode = tagFS.get_file_inode(tag_vec);
 
-    res = unlink(path);
+    if (tagFS.delete_file(tag_vec, file_inode) != 0) {
+        errno = ENOENT;
+        return -errno;
+    }
+
+    res = unlink(file_path.c_str());
     if (res == -1)
         return -errno;
 
@@ -284,66 +308,104 @@ static int xmp_rmdir(const char *path) {
     return 0;
 }
 
-// TODO: handle path correctly
 static int xmp_symlink(const char *from, const char *to) {
     int res;
 
-    res = symlink(from, to);
+    tagvec tag_vec_to = tagFS.parse_tags(to);
+    inodeset file_inode_set = tagFS.get_tag_set(tag_vec_to);
+
+    tagvec tag_vec_from = tagFS.parse_tags(from);
+    std::string link_file_path = tagFS.get_file_real_path(tag_vec_from);
+
+    inode new_inode = tagFS.get_new_inode();
+    std::string new_path = std::to_string(new_inode);
+
+    res = symlink(link_file_path.c_str(), new_path.c_str());
     if (res == -1)
         return -errno;
+
+    if (tagFS.create_new_file(tag_vec_to, new_inode) != 0) {
+        unlink(new_path.c_str());
+        errno = EEXIST;
+        return -errno;
+    }
 
     return 0;
 }
 
-// TODO: handle path correctly
-// And replace dir rename with tag rename
+// TODO: Replace dir rename with tag rename
 static int xmp_rename(const char *from, const char *to) {
-    int res;
+    tagvec tag_vec_from = tagFS.parse_tags(from);
+    tagvec tag_vec_to = tagFS.parse_tags(to);
+    inode file_inode = tagFS.get_file_inode(tag_vec_from);
 
-    /* When we have renameat2() in libc, then we can implement flags */
-
-    res = rename(from, to);
-    if (res == -1)
+    if (tagFS.delete_file(tag_vec_from, file_inode) != 0) {
+        errno = ENOENT;
         return -errno;
+    }
+    if (tagFS.create_new_file(tag_vec_to, file_inode) != 0) {
+        errno = EEXIST;
+        return -errno;
+    }
 
     return 0;
 }
 
-// TODO: handle path correctly
 static int xmp_link(const char *from, const char *to) {
     int res;
 
-    res = link(from, to);
+    tagvec tag_vec_to = tagFS.parse_tags(to);
+    inodeset file_inode_set = tagFS.get_tag_set(tag_vec_to);
+
+    tagvec tag_vec_from = tagFS.parse_tags(from);
+    std::string link_file_path = tagFS.get_file_real_path(tag_vec_from);
+
+    inode new_inode = tagFS.get_new_inode();
+    std::string new_path = std::to_string(new_inode);
+
+    res = link(link_file_path.c_str(), new_path.c_str());
     if (res == -1)
         return -errno;
+
+    if (tagFS.create_new_file(tag_vec_to, new_inode) != 0) {
+        unlink(new_path.c_str());
+        errno = EEXIST;
+        return -errno;
+    }
 
     return 0;
 }
 
-// TODO: handle path correctly
 static int xmp_chmod(const char *path, mode_t mode) {
     int res;
-    res = chmod(path, mode);
+    tagvec tag_vec = tagFS.parse_tags(path);
+    std::string file_path = tagFS.get_file_real_path(tag_vec);
+
+    res = chmod(file_path.c_str(), mode);
     if (res == -1)
         return -errno;
 
     return 0;
 }
 
-// TODO: handle path correctly
 static int xmp_chown(const char *path, uid_t uid, gid_t gid) {
     int res;
-    res = lchown(path, uid, gid);
+    tagvec tag_vec = tagFS.parse_tags(path);
+    std::string file_path = tagFS.get_file_real_path(tag_vec);
+
+    res = lchown(file_path.c_str(), uid, gid);
     if (res == -1)
         return -errno;
 
     return 0;
 }
 
-// TODO: handle path correctly
 static int xmp_truncate(const char *path, off_t size) {
     int res;
-    res = truncate(path, size);
+    tagvec tag_vec = tagFS.parse_tags(path);
+    std::string file_path = tagFS.get_file_real_path(tag_vec);
+
+    res = truncate(file_path.c_str(), size);
 
     if (res == -1)
         return -errno;
@@ -373,9 +435,31 @@ static int xmp_utimens(const char *path, const struct timespec ts[2],
 static int xmp_create(const char *path, mode_t mode, struct fuse_file_info *fi) {
     int fd;
 
-    fd = open(path, fi->flags, mode);
+    tagvec tag_vec = tagFS.parse_tags(path);
+    inodeset file_inode_set = tagFS.get_tag_set(tag_vec);
+
+    if (!file_inode_set.empty()) {
+        errno = EEXIST;
+#ifdef DEBUG
+        std::cerr << "path already exist: " << path << std::endl;
+#endif
+        return -errno;
+    }
+
+    inode new_inode = tagFS.get_new_inode();
+    std::string new_path = std::to_string(new_inode);
+
+    fd = open(new_path.c_str(), fi->flags, mode);
     if (fd == -1)
         return -errno;
+
+
+    if (tagFS.create_new_file(tag_vec, new_inode) != 0) {
+        close(fd);
+        unlink(new_path.c_str());
+        errno = EEXIST;
+        return -errno;
+    }
 
     fi->fh = fd;
     return 0;
@@ -385,16 +469,42 @@ static int xmp_create(const char *path, mode_t mode, struct fuse_file_info *fi) 
 static int xmp_open(const char *path, struct fuse_file_info *fi) {
     int fd;
 
-    fd = open(path, fi->flags);
+    tagvec tag_vec = tagFS.parse_tags(path);
+    inodeset file_inode_set = tagFS.get_tag_set(tag_vec);
+    std::string file_path;
+    inode new_inode;
+
+    if (fi->flags & O_CREAT) {
+        if (!file_inode_set.empty()) {
+            errno = EEXIST;
+#ifdef DEBUG
+            std::cerr << "path already exist: " << path << std::endl;
+#endif
+            return -errno;
+        }
+        new_inode = tagFS.get_new_inode();
+        file_path = std::to_string(new_inode);
+    } else {
+        file_path = tagFS.get_file_real_path(tag_vec);
+    }
+
+    fd = open(file_path.c_str(), fi->flags);
     if (fd == -1)
         return -errno;
+
+    if (fi->flags & O_CREAT) {
+        if (tagFS.create_new_file(tag_vec, new_inode) != 0) {
+            close(fd);
+            unlink(file_path.c_str());
+            errno = EEXIST;
+            return -errno;
+        }
+    }
 
     fi->fh = fd;
     return 0;
 }
 
-
-// TODO: handle path correctly
 static int xmp_read(const char *path, char *buf, size_t size, off_t offset,
                     struct fuse_file_info *fi) {
     int res;
@@ -407,8 +517,6 @@ static int xmp_read(const char *path, char *buf, size_t size, off_t offset,
     return res;
 }
 
-
-// TODO: handle path correctly
 static int xmp_read_buf(const char *path, struct fuse_bufvec **bufp,
                         size_t size, off_t offset, struct fuse_file_info *fi) {
     struct fuse_bufvec *src;
@@ -430,7 +538,6 @@ static int xmp_read_buf(const char *path, struct fuse_bufvec **bufp,
     return 0;
 }
 
-// TODO: handle path correctly
 static int xmp_write(const char *path, const char *buf, size_t size,
                      off_t offset, struct fuse_file_info *fi) {
     int res;
@@ -443,8 +550,6 @@ static int xmp_write(const char *path, const char *buf, size_t size,
     return res;
 }
 
-
-// TODO: handle path correctly
 static int xmp_write_buf(const char *path, struct fuse_bufvec *buf,
                          off_t offset, struct fuse_file_info *fi) {
     struct fuse_bufvec dst = FUSE_BUFVEC_INIT(fuse_buf_size(buf));
@@ -458,18 +563,18 @@ static int xmp_write_buf(const char *path, struct fuse_bufvec *buf,
     return fuse_buf_copy(&dst, buf, FUSE_BUF_SPLICE_NONBLOCK);
 }
 
-// TODO: handle path correctly
 static int xmp_statfs(const char *path, struct statvfs *stbuf) {
     int res;
+    tagvec tag_vec = tagFS.parse_tags(path);
+    std::string file_path = tagFS.get_file_real_path(tag_vec);
 
-    res = statvfs(path, stbuf);
+    res = statvfs(file_path.c_str(), stbuf);
     if (res == -1)
         return -errno;
 
     return 0;
 }
 
-// TODO: handle path correctly
 static int xmp_flush(const char *path, struct fuse_file_info *fi) {
     int res;
 
@@ -486,8 +591,6 @@ static int xmp_flush(const char *path, struct fuse_file_info *fi) {
     return 0;
 }
 
-
-// TODO: handle path correctly
 static int xmp_release(const char *path, struct fuse_file_info *fi) {
     (void) path;
     close(fi->fh);
@@ -495,8 +598,6 @@ static int xmp_release(const char *path, struct fuse_file_info *fi) {
     return 0;
 }
 
-
-// TODO: handle path correctly
 static int xmp_fsync(const char *path, int isdatasync,
                      struct fuse_file_info *fi) {
     int res;
@@ -576,7 +677,7 @@ static int xmp_lock(const char *path, struct fuse_file_info *fi, int cmd,
                sizeof(fi->lock_owner));
 }
 #endif
-// TODO: handle path correctly
+
 static int xmp_flock(const char *path, struct fuse_file_info *fi, int op) {
     int res;
     (void) path;

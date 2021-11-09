@@ -11,10 +11,12 @@ class TagFS {
 public:
     TagFS()= default;;
     tagvec parse_tags(const char *path);
+    inode get_file_inode(tagvec& tags);
     std::string get_file_real_path(tagvec& tags);
     inodeset get_tag_set(tagvec& tags);
     inode get_new_inode() const;
-    void create_new_file(tagvec& tags, inode new_inode);
+    int create_new_file(tagvec& tags, inode new_inode);
+    int delete_file(tagvec& tags, inode file_inode);
     inodeset select(const char *path, bool cache = false);
 
 public:
