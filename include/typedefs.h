@@ -13,14 +13,11 @@
 #define TAG_TYPE_FILE 1
 
 typedef struct tag_t {
-    std::size_t id = 0;
     std::size_t type = TAG_TYPE_REGULAR;
     std::string name{};
 
     bool operator==(const tag_t &other) const {
-        return (id == other.id
-              && type == other.type
-              && name == other.name);
+        return (type == other.type && name == other.name);
     }
 } tag_t;
 

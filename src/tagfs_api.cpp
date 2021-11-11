@@ -57,17 +57,15 @@ namespace fs = std::filesystem;
 #include <TagFS.h>
 TagFS tagFS;
 
-struct xmp_dirp {
-    DIR *dp;
-    struct dirent *entry;
-    off_t offset;
+struct tag_dirp {
+    inodeset inodes;
+    inodeset::iterator entry;
 };
 
 static int xmp_getattr(const char *path, struct stat *stbuf) {
     int res;
 
-    if ( strcmp( path, "/" ) == 0 )
-    {
+    if ( strcmp( path, "/" ) == 0 ) {
         stbuf->st_uid = getuid(); // The owner of the file/directory is the user who mounted the filesystem
         stbuf->st_gid = getgid(); // The group of the file/directory is the same as the group of the user who mounted the filesystem
         stbuf->st_atime = time( nullptr ); // The last "a"ccess of the file/directory is right now
@@ -76,9 +74,10 @@ static int xmp_getattr(const char *path, struct stat *stbuf) {
         stbuf->st_nlink = 2; // Why "two" hardlinks instead of "one"? The answer is here: http://unix.stackexchange.com/a/101536
         return 0;
     }
-
-    tagvec tag_vec = tagFS.parse_tags(path);
-    std::string file_path = tagFS.get_file_real_path(tag_vec);
+    auto tags_status = tagFS.parseTags(path);
+    if (tags_status.second != 0) return -errno;
+    tagvec tag_vec = tags_status.first;
+    std::string file_path = tagFS.getFileRealPath(tag_vec);
     res = lstat(file_path.c_str(), stbuf);
     if (res == -1)
         return -errno;
@@ -89,8 +88,10 @@ static int xmp_getattr(const char *path, struct stat *stbuf) {
 static int xmp_access(const char *path, int mask) {
     int res;
 
-    tagvec tag_vec = tagFS.parse_tags(path);
-    std::string file_path = tagFS.get_file_real_path(tag_vec);
+    auto tags_status = tagFS.parseTags(path);
+    if (tags_status.second != 0) return -errno;
+    tagvec tag_vec = tags_status.first;
+    std::string file_path = tagFS.getFileRealPath(tag_vec);
     res = access(file_path.c_str(), mask);
     if (res == -1)
         return -errno;
@@ -101,8 +102,10 @@ static int xmp_access(const char *path, int mask) {
 static int xmp_readlink(const char *path, char *buf, size_t size) {
     int res;
 
-    tagvec tag_vec = tagFS.parse_tags(path);
-    std::string file_path = tagFS.get_file_real_path(tag_vec);
+    auto tags_status = tagFS.parseTags(path);
+    if (tags_status.second != 0) return -errno;
+    tagvec tag_vec = tags_status.first;
+    std::string file_path = tagFS.getFileRealPath(tag_vec);
     res = readlink(file_path.c_str(), buf, size - 1);
     if (res == -1)
         return -errno;
@@ -111,124 +114,69 @@ static int xmp_readlink(const char *path, char *buf, size_t size) {
     return 0;
 }
 
-// TODO: change inner logic since we have only root dir
 static int xmp_opendir(const char *path, struct fuse_file_info *fi) {
-    int res;
-    auto *d = static_cast<xmp_dirp *>(malloc(sizeof(struct xmp_dirp)));
+
+    int res = 0;
+
+    // create dirent
+    auto *d = static_cast<tag_dirp *> (malloc(sizeof(struct tag_dirp)));
     if (d == nullptr)
         return -ENOMEM;
 
-    d->dp = opendir(path);
-    if (d->dp == nullptr) {
-        res = -errno;
-        free(d);
-        return res;
-    }
-    d->offset = 0;
-    d->entry = nullptr;
-
+    // fill and save pointer to dirent
+    auto tags_status = tagFS.parseTags(path);
+    if (tags_status.second != 0) return -errno;
+    tagvec tags = tags_status.first;
+    d->inodes = std::move(tagFS.getInodesFromTags(tags));
+    d->entry = d->inodes.begin();
     fi->fh = (unsigned long) d;
-    return 0;
+
+    return res;
 }
 
-static inline struct xmp_dirp *get_dirp(struct fuse_file_info *fi) {
-    return (struct xmp_dirp *) (uintptr_t) fi->fh;
+static inline struct tag_dirp *get_dirp(struct fuse_file_info *fi) {
+    return (struct tag_dirp *) (uintptr_t) fi->fh;
 }
 
-
-
-// TODO: change inner logic since we have only root dir
 static int xmp_readdir(const char *path, void *buf, fuse_fill_dir_t filler,
                        off_t offset, struct fuse_file_info *fi) {
-//    tagvec tags = tagFS.parse_tags(path);
-//    inodeset inodes;
-//    for (const auto &tag: tags) {
-//        auto inode = tagFS.tagInodeMap[tag];
-//        inodes.insert(tagFS.tagInodeMap[tag].begin(), tagFS.tagInodeMap[tag].end());
-//    }
-//
-//    for (const auto &inode: inodes) {
-//        struct stat st{};
-//        lstat(std::to_string(inode).c_str(), &st);      // TODO: error handling
-//        filler(buf, tagFS.inodeFilenameMap[inode].c_str(), &st, 0);
-//    }
+    int status = 0;
+    tag_dirp *d = get_dirp(fi);
 
+    // get first entry
+    d->entry = d->inodes.begin();
 
+    // move entry on offset
+    std::advance(d->entry, offset);
 
-
-    struct xmp_dirp *d = get_dirp(fi);
-
-    (void) path;
-    if (offset != d->offset) {
-#ifndef __FreeBSD__
-        seekdir(d->dp, offset);
-#else
-        /* Subtract the one that we add when calling
-           telldir() below */
-        seekdir(d->dp, offset-1);
-#endif
-        d->entry = nullptr;
-        d->offset = offset;
-    }
-    while (true) {
+    while (d->entry != d->inodes.end()) {
         struct stat st{};
-        off_t nextoff;
-        if (!d->entry) {
-            d->entry = readdir(d->dp);
-            if (!d->entry)
-                break;
-        }
-#ifdef HAVE_FSTATAT
-        if (flags & FUSE_READDIR_PLUS) {
-            int res;
-
-            res = fstatat(dirfd(d->dp), d->entry->d_name, &st,
-                      AT_SYMLINK_NOFOLLOW);
-            if (res != -1)
-                fill_flags |= FUSE_FILL_DIR_PLUS;
-        }
-#endif
-//        if (!(fill_flags & FUSE_FILL_DIR_PLUS)) {
-//            memset(&st, 0, sizeof(st));
-//            st.st_ino = d->entry->d_ino;
-//            st.st_mode = d->entry->d_type << 12;
-//        }
-
-        memset(&st, 0, sizeof(st));
-        st.st_ino = d->entry->d_ino;
-        st.st_mode = d->entry->d_type << 12;
-
-        nextoff = telldir(d->dp);
-#ifdef __FreeBSD__
-        /* Under FreeBSD, telldir() may return 0 the first time
-           it is called. But for libfuse, an offset of zero
-           means that offsets are not supported, so we shift
-           everything by one. */
-        nextoff++;
-#endif
-        if (filler(buf, d->entry->d_name, &st, nextoff))
-            break;
-
-        d->entry = nullptr;
-        d->offset = nextoff;
+        if (lstat(std::to_string(*d->entry).c_str(), &st) == -1) status = -1;
+        filler(buf, tagFS.inodeFilenameMap[*d->entry].c_str(), &st, 0);
     }
 
-    return 0;
+    return status;
 }
 
 static int xmp_releasedir(const char *path, struct fuse_file_info *fi) {
-    struct xmp_dirp *d = get_dirp(fi);
-    (void) path;
-    closedir(d->dp);
+    tag_dirp *d = get_dirp(fi);
     free(d);
     return 0;
+}
+
+static int xmp_mkdir(const char *path, mode_t mode) {
+    auto spath = std::string(path);
+    strvec tagNames = split(spath, "/");
+    return tagFS.createRegularTags(tagNames);
 }
 
 static int xmp_mknod(const char *path, mode_t mode, dev_t rdev) {
     int res;
 
-    tagvec tag_vec = tagFS.parse_tags(path);
-    inodeset file_inode_set = tagFS.get_tag_set(tag_vec);
+    auto tags_status = tagFS.parseTags(path);  // will fail, since tags are not present
+    if (tags_status.second != 0) return -errno;
+    tagvec tag_vec = tags_status.first;
+    inodeset file_inode_set = tagFS.getInodesFromTags(tag_vec);
 
     if (!file_inode_set.empty()) {
         errno = EEXIST;
@@ -239,10 +187,10 @@ static int xmp_mknod(const char *path, mode_t mode, dev_t rdev) {
     }
 
     if (S_ISDIR(mode)) {
-        // TODO: add additional logic when dir is created (replace with tag creation)
+        xmp_mkdir(path, mode);
     }
     else {
-        inode new_inode = tagFS.get_new_inode();
+        inode new_inode = tagFS.getNewInode();
         std::string new_path = std::to_string(new_inode);
 
         if (S_ISFIFO(mode)) {
@@ -255,7 +203,7 @@ static int xmp_mknod(const char *path, mode_t mode, dev_t rdev) {
             return -errno;
         }
 
-        if (tagFS.create_new_file(tag_vec, new_inode) != 0) {
+        if (tagFS.createNewFileMetaData(tag_vec, new_inode) != 0) {
             unlink(new_path.c_str());
             errno = EEXIST;
             return -errno;
@@ -266,25 +214,15 @@ static int xmp_mknod(const char *path, mode_t mode, dev_t rdev) {
     return 0;
 }
 
-// TODO: handle path correctly and add additional logic when dir is created (replace with tag creation)
-static int xmp_mkdir(const char *path, mode_t mode) {
-    int res;
-
-    res = mkdir(path, mode);
-    if (res == -1)
-        return -errno;
-
-    return 0;
-}
-
-
 static int xmp_unlink(const char *path) {
     int res;
-    tagvec tag_vec = tagFS.parse_tags(path);
-    std::string file_path = tagFS.get_file_real_path(tag_vec);
-    inode file_inode = tagFS.get_file_inode(tag_vec);
+    auto tags_status = tagFS.parseTags(path);
+    if (tags_status.second != 0) return -errno;
+    tagvec tag_vec = tags_status.first;
+    std::string file_path = tagFS.getFileRealPath(tag_vec);
+    inode file_inode = tagFS.getFileInode(tag_vec);
 
-    if (tagFS.delete_file(tag_vec, file_inode) != 0) {
+    if (tagFS.deleteFileMetaData(tag_vec, file_inode) != 0) {
         errno = ENOENT;
         return -errno;
     }
@@ -296,35 +234,33 @@ static int xmp_unlink(const char *path) {
     return 0;
 }
 
-// TODO: handle path correctly and add additional logic when dir is deleted (replace with tag deletion)
-// Update inner structures
 static int xmp_rmdir(const char *path) {
-    int res;
-
-    res = rmdir(path);
-    if (res == -1)
-        return -errno;
-
-    return 0;
+    auto spath = std::string(path);
+    strvec tagNames = split(spath, "/");
+    return tagFS.deleteRegularTags(tagNames);
 }
 
 static int xmp_symlink(const char *from, const char *to) {
     int res;
 
-    tagvec tag_vec_to = tagFS.parse_tags(to);
-    inodeset file_inode_set = tagFS.get_tag_set(tag_vec_to);
+    auto tags_status_to = tagFS.parseTags(from);
+    if (tags_status_to.second != 0) return -errno;
+    tagvec tag_vec_to = tags_status_to.first;
+    inodeset file_inode_set = tagFS.getInodesFromTags(tag_vec_to);
 
-    tagvec tag_vec_from = tagFS.parse_tags(from);
-    std::string link_file_path = tagFS.get_file_real_path(tag_vec_from);
+    auto tags_status_from = tagFS.parseTags(from);
+    if (tags_status_from.second != 0) return -errno;
+    tagvec tag_vec_from = tags_status_from.first;
+    std::string link_file_path = tagFS.getFileRealPath(tag_vec_from);
 
-    inode new_inode = tagFS.get_new_inode();
+    inode new_inode = tagFS.getNewInode();
     std::string new_path = std::to_string(new_inode);
 
     res = symlink(link_file_path.c_str(), new_path.c_str());
     if (res == -1)
         return -errno;
 
-    if (tagFS.create_new_file(tag_vec_to, new_inode) != 0) {
+    if (tagFS.createNewFileMetaData(tag_vec_to, new_inode) != 0) {
         unlink(new_path.c_str());
         errno = EEXIST;
         return -errno;
@@ -335,17 +271,31 @@ static int xmp_symlink(const char *from, const char *to) {
 
 // TODO: Replace dir rename with tag rename
 static int xmp_rename(const char *from, const char *to) {
-    tagvec tag_vec_from = tagFS.parse_tags(from);
-    tagvec tag_vec_to = tagFS.parse_tags(to);
-    inode file_inode = tagFS.get_file_inode(tag_vec_from);
+    tagvec tag_vec_from = tagFS.parseTags(from);
+    tagvec tag_vec_to = tagFS.parseTags(to);
 
-    if (tagFS.delete_file(tag_vec_from, file_inode) != 0) {
-        errno = ENOENT;
-        return -errno;
-    }
-    if (tagFS.create_new_file(tag_vec_to, file_inode) != 0) {
-        errno = EEXIST;
-        return -errno;
+    if (tag_vec_from[tag_vec_from.size() - 1].type == TAG_TYPE_FILE) {
+        inode file_inode = tagFS.getFileInode(tag_vec_from);
+
+        if (tagFS.deleteFileMetaData(tag_vec_from, file_inode) != 0) {
+            errno = ENOENT;
+            return -errno;
+        }
+        if (tagFS.createNewFileMetaData(tag_vec_to, file_inode) != 0) {
+            errno = EEXIST;
+            return -errno;
+        }
+    } else {
+//        /tag1/tag2/  ->  /tag1_new/tag2_new
+        if (tag_vec_from.size() != tag_vec_to.size()) {
+#ifdef DEBUG
+            std::cerr << "When renaming multiple tags, froms and tos should be of the same length" << std::endl;
+#endif
+            errno = EINVAL;
+            return -errno;
+        }
+
+
     }
 
     return 0;
@@ -354,20 +304,20 @@ static int xmp_rename(const char *from, const char *to) {
 static int xmp_link(const char *from, const char *to) {
     int res;
 
-    tagvec tag_vec_to = tagFS.parse_tags(to);
-    inodeset file_inode_set = tagFS.get_tag_set(tag_vec_to);
+    tagvec tag_vec_to = tagFS.parseTags(to);
+    inodeset file_inode_set = tagFS.getInodesFromTags(tag_vec_to);
 
-    tagvec tag_vec_from = tagFS.parse_tags(from);
-    std::string link_file_path = tagFS.get_file_real_path(tag_vec_from);
+    tagvec tag_vec_from = tagFS.parseTags(from);
+    std::string link_file_path = tagFS.getFileRealPath(tag_vec_from);
 
-    inode new_inode = tagFS.get_new_inode();
+    inode new_inode = tagFS.getNewInode();
     std::string new_path = std::to_string(new_inode);
 
     res = link(link_file_path.c_str(), new_path.c_str());
     if (res == -1)
         return -errno;
 
-    if (tagFS.create_new_file(tag_vec_to, new_inode) != 0) {
+    if (tagFS.createNewFileMetaData(tag_vec_to, new_inode) != 0) {
         unlink(new_path.c_str());
         errno = EEXIST;
         return -errno;
@@ -378,8 +328,8 @@ static int xmp_link(const char *from, const char *to) {
 
 static int xmp_chmod(const char *path, mode_t mode) {
     int res;
-    tagvec tag_vec = tagFS.parse_tags(path);
-    std::string file_path = tagFS.get_file_real_path(tag_vec);
+    tagvec tag_vec = tagFS.parseTags(path);
+    std::string file_path = tagFS.getFileRealPath(tag_vec);
 
     res = chmod(file_path.c_str(), mode);
     if (res == -1)
@@ -390,8 +340,8 @@ static int xmp_chmod(const char *path, mode_t mode) {
 
 static int xmp_chown(const char *path, uid_t uid, gid_t gid) {
     int res;
-    tagvec tag_vec = tagFS.parse_tags(path);
-    std::string file_path = tagFS.get_file_real_path(tag_vec);
+    tagvec tag_vec = tagFS.parseTags(path);
+    std::string file_path = tagFS.getFileRealPath(tag_vec);
 
     res = lchown(file_path.c_str(), uid, gid);
     if (res == -1)
@@ -402,8 +352,8 @@ static int xmp_chown(const char *path, uid_t uid, gid_t gid) {
 
 static int xmp_truncate(const char *path, off_t size) {
     int res;
-    tagvec tag_vec = tagFS.parse_tags(path);
-    std::string file_path = tagFS.get_file_real_path(tag_vec);
+    tagvec tag_vec = tagFS.parseTags(path);
+    std::string file_path = tagFS.getFileRealPath(tag_vec);
 
     res = truncate(file_path.c_str(), size);
 
@@ -435,8 +385,8 @@ static int xmp_utimens(const char *path, const struct timespec ts[2],
 static int xmp_create(const char *path, mode_t mode, struct fuse_file_info *fi) {
     int fd;
 
-    tagvec tag_vec = tagFS.parse_tags(path);
-    inodeset file_inode_set = tagFS.get_tag_set(tag_vec);
+    tagvec tag_vec = tagFS.parseTags(path);
+    inodeset file_inode_set = tagFS.getInodesFromTags(tag_vec);
 
     if (!file_inode_set.empty()) {
         errno = EEXIST;
@@ -446,7 +396,7 @@ static int xmp_create(const char *path, mode_t mode, struct fuse_file_info *fi) 
         return -errno;
     }
 
-    inode new_inode = tagFS.get_new_inode();
+    inode new_inode = tagFS.getNewInode();
     std::string new_path = std::to_string(new_inode);
 
     fd = open(new_path.c_str(), fi->flags, mode);
@@ -454,7 +404,7 @@ static int xmp_create(const char *path, mode_t mode, struct fuse_file_info *fi) 
         return -errno;
 
 
-    if (tagFS.create_new_file(tag_vec, new_inode) != 0) {
+    if (tagFS.createNewFileMetaData(tag_vec, new_inode) != 0) {
         close(fd);
         unlink(new_path.c_str());
         errno = EEXIST;
@@ -465,12 +415,11 @@ static int xmp_create(const char *path, mode_t mode, struct fuse_file_info *fi) 
     return 0;
 }
 
-// TODO: handle path correctly
 static int xmp_open(const char *path, struct fuse_file_info *fi) {
     int fd;
 
-    tagvec tag_vec = tagFS.parse_tags(path);
-    inodeset file_inode_set = tagFS.get_tag_set(tag_vec);
+    tagvec tag_vec = tagFS.parseTags(path);
+    inodeset file_inode_set = tagFS.getInodesFromTags(tag_vec);
     std::string file_path;
     inode new_inode;
 
@@ -482,10 +431,10 @@ static int xmp_open(const char *path, struct fuse_file_info *fi) {
 #endif
             return -errno;
         }
-        new_inode = tagFS.get_new_inode();
+        new_inode = tagFS.getNewInode();
         file_path = std::to_string(new_inode);
     } else {
-        file_path = tagFS.get_file_real_path(tag_vec);
+        file_path = tagFS.getFileRealPath(tag_vec);
     }
 
     fd = open(file_path.c_str(), fi->flags);
@@ -493,7 +442,7 @@ static int xmp_open(const char *path, struct fuse_file_info *fi) {
         return -errno;
 
     if (fi->flags & O_CREAT) {
-        if (tagFS.create_new_file(tag_vec, new_inode) != 0) {
+        if (tagFS.createNewFileMetaData(tag_vec, new_inode) != 0) {
             close(fd);
             unlink(file_path.c_str());
             errno = EEXIST;
@@ -565,8 +514,8 @@ static int xmp_write_buf(const char *path, struct fuse_bufvec *buf,
 
 static int xmp_statfs(const char *path, struct statvfs *stbuf) {
     int res;
-    tagvec tag_vec = tagFS.parse_tags(path);
-    std::string file_path = tagFS.get_file_real_path(tag_vec);
+    tagvec tag_vec = tagFS.parseTags(path);
+    std::string file_path = tagFS.getFileRealPath(tag_vec);
 
     res = statvfs(file_path.c_str(), stbuf);
     if (res == -1)

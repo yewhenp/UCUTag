@@ -49,7 +49,7 @@ find_package(FUSE REQUIRED)
 set(CMAKE_CXX_FLAGS ${CMAKE_CXX_FLAGS} "-D_FILE_OFFSET_BITS=64")
 
 include_directories(include)
-add_executable(${EXECUTABLE_NAME} src/tagfs.cpp src/TagFS.cpp include/TagFS.h include/string_utils.h src/string_utils.cpp include/typedefs.h src/typedefs.cpp)
+add_executable(${EXECUTABLE_NAME} src/tagfs_api.cpp src/TagFS.cpp include/TagFS.h include/string_utils.h src/string_utils.cpp include/typedefs.h src/typedefs.cpp include/tagfs_api.h)
 target_include_directories(${EXECUTABLE_NAME} PRIVATE ${FUSE_INCLUDE_DIR})
 target_link_libraries(${EXECUTABLE_NAME} ${FUSE_LIBRARIES})
 set_target_properties(${EXECUTABLE_NAME}
