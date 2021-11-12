@@ -2,8 +2,8 @@
 
 std::pair<tagvec, int> TagFS::parseTags(const char *path) {
     tagvec res;
-    auto spath = std::string(path);
-    auto splitted = split(spath, "/");
+//    auto spath = std::string(path);
+    auto splitted = split(path, "/");
 
     // handle '/' at the end
     if (splitted[-1].empty()) {

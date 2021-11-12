@@ -165,8 +165,8 @@ static int xmp_releasedir(const char *path, struct fuse_file_info *fi) {
 }
 
 static int xmp_mkdir(const char *path, mode_t mode) {
-    auto spath = std::string(path);
-    strvec tagNames = split(spath, "/");
+//    auto spath = std::string(path);
+    strvec tagNames = split(path, "/");
     return tagFS.createRegularTags(tagNames);
 }
 
@@ -235,8 +235,8 @@ static int xmp_unlink(const char *path) {
 }
 
 static int xmp_rmdir(const char *path) {
-    auto spath = std::string(path);
-    strvec tagNames = split(spath, "/");
+//    auto spath = std::string(path);
+    strvec tagNames = split(path, "/");
     return tagFS.deleteRegularTags(tagNames);
 }
 
@@ -271,8 +271,14 @@ static int xmp_symlink(const char *from, const char *to) {
 
 // TODO: Replace dir rename with tag rename
 static int xmp_rename(const char *from, const char *to) {
-    tagvec tag_vec_from = tagFS.parseTags(from);
-    tagvec tag_vec_to = tagFS.parseTags(to);
+    auto[tag_vec_from, status] = tagFS.parseTags(from);
+    if (status != 0) return -errno;
+
+    auto tag_vec_to = tagvec();
+    for(auto& name: split(to, "/")){
+        tag_vec_to.push_back({TAG_TYPE_REGULAR, name});
+    }
+    tag_vec_to.back().type = tag_vec_from.back().type;
 
     if (tag_vec_from[tag_vec_from.size() - 1].type == TAG_TYPE_FILE) {
         inode file_inode = tagFS.getFileInode(tag_vec_from);
@@ -735,7 +741,6 @@ void init_from_dir(const std::string &root){
     std::size_t inode_count = 0;
     for(auto& p: fs::recursive_directory_iterator(root, std::filesystem::directory_options::skip_permission_denied)){
         tag_t tag;
-        tag.id = inode_count;
         tag.name = *(--p.path().end());
         if(!std::filesystem::is_directory(p)){
             tag.type = TAG_NAME;

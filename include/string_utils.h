@@ -5,6 +5,6 @@
 #include <string>
 #include "typedefs.h"
 
-strvec split(std::string &str, const std::string &delim);
+strvec split(const std::string &str, const std::string &delim);
 
 #endif //UCUTAG_PROJECT_STRING_UTILS_H

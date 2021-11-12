@@ -1,7 +1,7 @@
 #include "string_utils.h"
 
 
-strvec split(std::string &str, const std::string &delim) {
+strvec split(const std::string &str, const std::string &delim) {
     size_t next, prev = 0;
     strvec result;
     while ((next = str.find(delim, prev)) != std::string::npos) {
