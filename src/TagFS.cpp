@@ -1,14 +1,21 @@
 #include "TagFS.h"
 
 std::pair<tagvec, int> TagFS::parseTags(const char *path) {
-    tagvec res;
+    tagvec res{};
 //    auto spath = std::string(path);
     auto splitted = split(path, "/");
 
+#ifdef DEBUG
+    std::cout << "Splitted: " << splitted << std::endl;
+#endif
+
     // handle '/' at the end
-    if (splitted[-1].empty()) {
-        splitted.pop_back();
-    }
+//    if (splitted[-1].empty()) {
+//        splitted.pop_back();
+//    }
+//    if (splitted[0].empty()) {
+//        splitted.erase(splitted.begin());
+//    }
 
     for (auto &tagName: splitted) {
         if (tagNameTag.find(tagName) == tagNameTag.end()) {
@@ -21,7 +28,7 @@ std::pair<tagvec, int> TagFS::parseTags(const char *path) {
 //    std::transform(splitted.begin(), splitted.end(), std::back_inserter(res),
 //                   [this](const std::string &name) -> tag_t {return tagNameTag[name];});
 #ifdef DEBUG
-    std::cout << "Parsed path: " << path << ": " << res << std::endl;
+    std::cout << "Parsed path: " << path << " : " << res << std::endl;
 #endif
     return {{res}, 0};
 }
@@ -71,8 +78,8 @@ inodeset TagFS::getInodesFromTags(tagvec &tags) {
     return intersect;
 }
 
-inode TagFS::getNewInode() const {
-    return inodeFilenameMap.size();
+inode TagFS::getNewInode() {
+    return new_inode_counter++;
 }
 
 int TagFS::createNewFileMetaData(tagvec &tags, inode newInode) {

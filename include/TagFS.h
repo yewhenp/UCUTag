@@ -14,7 +14,7 @@ public:
     inode getFileInode(tagvec &tags);
     std::string getFileRealPath(tagvec &tags);
     inodeset getInodesFromTags(tagvec &tags);
-    inode getNewInode() const;
+    inode getNewInode();
     int createNewFileMetaData(tagvec &tags, inode newInode);
     int deleteFileMetaData(tagvec &tags, inode fileInode);
     int deleteRegularTags(strvec &tagNames);
@@ -26,6 +26,8 @@ public:
     inodeTagMap_t inodeTagMap{};
     inodeFilenameMap_t inodeFilenameMap{};
     tagNameTag_t tagNameTag{};
+
+    size_t new_inode_counter = 1;
 };
 
 extern TagFS tagFS;

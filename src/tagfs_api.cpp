@@ -81,6 +81,17 @@ static int xmp_getattr(const char *path, struct stat *stbuf) {
     auto tags_status = tagFS.parseTags(path);
     if (tags_status.second != 0) return -errno;
     tagvec tag_vec = tags_status.first;
+
+    if ( tag_vec.back().type == TAG_TYPE_REGULAR ) {
+        stbuf->st_uid = getuid(); // The owner of the file/directory is the user who mounted the filesystem
+        stbuf->st_gid = getgid(); // The group of the file/directory is the same as the group of the user who mounted the filesystem
+        stbuf->st_atime = time( nullptr ); // The last "a"ccess of the file/directory is right now
+        stbuf->st_mtime = time( nullptr ); // The last "m"odification of the file/directory is right now
+        stbuf->st_mode = S_IFDIR | 0755;
+        stbuf->st_nlink = 2; // Why "two" hardlinks instead of "one"? The answer is here: http://unix.stackexchange.com/a/101536
+        return 0;
+    }
+
     std::string file_path = tagFS.getFileRealPath(tag_vec);
     res = lstat(file_path.c_str(), stbuf);
     if (res == -1)
@@ -138,15 +149,36 @@ static int xmp_opendir(const char *path, struct fuse_file_info *fi) {
     int res = 0;
 
     // create dirent
-    auto *d = static_cast<tag_dirp *> (malloc(sizeof(struct tag_dirp)));
-    if (d == nullptr)
+//    auto *d = static_cast<tag_dirp *> (malloc(sizeof(struct tag_dirp)));
+    tag_dirp* d;
+    try {
+        d = new tag_dirp{};
+    } catch (std::bad_alloc& err) {
         return -ENOMEM;
+    }
+
+#ifdef DEBUG
+    std::cerr << " >>> opendir malloc done" << std::endl;
+#endif
+
 
     // fill and save pointer to dirent
     auto tags_status = tagFS.parseTags(path);
     if (tags_status.second != 0) return -errno;
     tagvec tags = tags_status.first;
+
+#ifdef DEBUG
+    std::cerr << " >>> opendir before move" << std::endl;
+#endif
+
+
     d->inodes = std::move(tagFS.getInodesFromTags(tags));
+
+#ifdef DEBUG
+    std::cerr << " >>> opendir after move" << std::endl;
+#endif
+
+
     d->entry = d->inodes.begin();
     fi->fh = (unsigned long) d;
 
@@ -177,6 +209,7 @@ static int xmp_readdir(const char *path, void *buf, fuse_fill_dir_t filler,
         struct stat st{};
         if (lstat(std::to_string(*d->entry).c_str(), &st) == -1) status = -1;
         filler(buf, tagFS.inodeFilenameMap[*d->entry].c_str(), &st, 0);
+        d->entry++;
     }
 
     return status;
@@ -211,7 +244,7 @@ static int xmp_mknod(const char *path, mode_t mode, dev_t rdev) {
     auto tag_vec = tagvec();
     bool last_exist = false;
     for(auto& tagName: split(path, "/")){
-        if (tagFS.tagNameTag.find(tagName) == tagFS.tagNameTag.end()) {
+        if (tagFS.tagNameTag.find(tagName) != tagFS.tagNameTag.end()) {
             tag_vec.push_back(tagFS.tagNameTag[tagName]);
             last_exist = true;
         } else {
@@ -306,7 +339,7 @@ static int xmp_symlink(const char *from, const char *to) {
     auto tag_vec_to = tagvec();
     bool last_exist = false;
     for(auto& tagName: split(to, "/")){
-        if (tagFS.tagNameTag.find(tagName) == tagFS.tagNameTag.end()) {
+        if (tagFS.tagNameTag.find(tagName) != tagFS.tagNameTag.end()) {
             tag_vec_to.push_back(tagFS.tagNameTag[tagName]);
             last_exist = true;
         } else {
@@ -351,7 +384,7 @@ static int xmp_rename(const char *from, const char *to) {
 
     auto tag_vec_to = tagvec();
     for(auto& tagName: split(to, "/")){
-        if (tagFS.tagNameTag.find(tagName) == tagFS.tagNameTag.end()) {
+        if (tagFS.tagNameTag.find(tagName) != tagFS.tagNameTag.end()) {
             tag_vec_to.push_back(tagFS.tagNameTag[tagName]);
         } else {
             tag_vec_to.push_back({TAG_TYPE_REGULAR, tagName});
@@ -401,7 +434,7 @@ static int xmp_link(const char *from, const char *to) {
     auto tag_vec_to = tagvec();
     bool last_exist = false;
     for(auto& tagName: split(to, "/")){
-        if (tagFS.tagNameTag.find(tagName) == tagFS.tagNameTag.end()) {
+        if (tagFS.tagNameTag.find(tagName) != tagFS.tagNameTag.end()) {
             tag_vec_to.push_back(tagFS.tagNameTag[tagName]);
             last_exist = true;
         } else {
@@ -514,7 +547,8 @@ static int xmp_create(const char *path, mode_t mode, struct fuse_file_info *fi) 
     auto tag_vec = tagvec();
     bool last_exist = false;
     for(auto& tagName: split(path, "/")){
-        if (tagFS.tagNameTag.find(tagName) == tagFS.tagNameTag.end()) {
+
+        if (tagFS.tagNameTag.find(tagName) != tagFS.tagNameTag.end()) {
             tag_vec.push_back(tagFS.tagNameTag[tagName]);
             last_exist = true;
         } else {
@@ -523,6 +557,10 @@ static int xmp_create(const char *path, mode_t mode, struct fuse_file_info *fi) 
         }
     }
     if (last_exist) {
+#ifdef DEBUG
+        std::cout << " >>> create exiting because exist: " << path << std::endl;
+#endif
+
         errno = EEXIST;
         return -errno;
     }
@@ -540,9 +578,17 @@ static int xmp_create(const char *path, mode_t mode, struct fuse_file_info *fi) 
     inode new_inode = tagFS.getNewInode();
     std::string new_path = std::to_string(new_inode);
 
+#ifdef DEBUG
+    std::cout << " >>> create inode got: " << new_path << std::endl;
+#endif
+
     fd = open(new_path.c_str(), fi->flags, mode);
     if (fd == -1)
         return -errno;
+
+#ifdef DEBUG
+    std::cout << " >>> create open done: " << new_path << std::endl;
+#endif
 
 
     if (tagFS.createNewFileMetaData(tag_vec, new_inode) != 0) {
@@ -551,6 +597,10 @@ static int xmp_create(const char *path, mode_t mode, struct fuse_file_info *fi) 
         errno = EEXIST;
         return -errno;
     }
+
+#ifdef DEBUG
+    std::cout << " >>> create file data created: " << new_path << std::endl;
+#endif
 
     fi->fh = fd;
     return 0;
@@ -572,7 +622,7 @@ static int xmp_open(const char *path, struct fuse_file_info *fi) {
         tag_vec = tagvec();
         bool last_exist = false;
         for(auto& tagName: split(path, "/")){
-            if (tagFS.tagNameTag.find(tagName) == tagFS.tagNameTag.end()) {
+            if (tagFS.tagNameTag.find(tagName) != tagFS.tagNameTag.end()) {
                 tag_vec.push_back(tagFS.tagNameTag[tagName]);
                 last_exist = true;
             } else {

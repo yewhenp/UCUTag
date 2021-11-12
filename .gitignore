@@ -2,4 +2,5 @@
 /bin
 /build
 /test_mount
+/test_files
 /.idea
