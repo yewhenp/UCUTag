@@ -78,9 +78,9 @@ static int xmp_getattr(const char *path, struct stat *stbuf) {
         stbuf->st_nlink = 2; // Why "two" hardlinks instead of "one"? The answer is here: http://unix.stackexchange.com/a/101536
         return 0;
     }
-    auto tags_status = tagFS.parseTags(path);
-    if (tags_status.second != 0) return -errno;
-    tagvec tag_vec = tags_status.first;
+
+    auto [tag_vec, status] = tagFS.parseTags(path);
+    if (status != 0) return -errno;
 
     if ( tag_vec.back().type == TAG_TYPE_REGULAR ) {
         stbuf->st_uid = getuid(); // The owner of the file/directory is the user who mounted the filesystem
@@ -111,9 +111,8 @@ static int xmp_access(const char *path, int mask) {
 
     int res;
 
-    auto tags_status = tagFS.parseTags(path);
-    if (tags_status.second != 0) return -errno;
-    tagvec tag_vec = tags_status.first;
+    auto [tag_vec, status] = tagFS.parseTags(path);
+    if (status != 0) return -errno;
     std::string file_path = tagFS.getFileRealPath(tag_vec);
     res = access(file_path.c_str(), mask);
     if (res == -1)
@@ -129,9 +128,8 @@ static int xmp_readlink(const char *path, char *buf, size_t size) {
 
     int res;
 
-    auto tags_status = tagFS.parseTags(path);
-    if (tags_status.second != 0) return -errno;
-    tagvec tag_vec = tags_status.first;
+    auto [tag_vec, status] = tagFS.parseTags(path);
+    if (status != 0) return -errno;
     std::string file_path = tagFS.getFileRealPath(tag_vec);
     res = readlink(file_path.c_str(), buf, size - 1);
     if (res == -1)
@@ -161,16 +159,13 @@ static int xmp_opendir(const char *path, struct fuse_file_info *fi) {
     std::cerr << " >>> opendir malloc done" << std::endl;
 #endif
 
-
     // fill and save pointer to dirent
-    auto tags_status = tagFS.parseTags(path);
-    if (tags_status.second != 0) return -errno;
-    tagvec tags = tags_status.first;
+    auto [tags, status] = tagFS.parseTags(path);
+    if (status != 0) return -errno;
 
 #ifdef DEBUG
     std::cerr << " >>> opendir before move" << std::endl;
 #endif
-
 
     d->inodes = std::move(tagFS.getInodesFromTags(tags));
 
@@ -256,7 +251,6 @@ static int xmp_mknod(const char *path, mode_t mode, dev_t rdev) {
         errno = EEXIST;
         return -errno;
     }
-
     inodeset file_inode_set = tagFS.getInodesFromTags(tag_vec);
 
     if (!file_inode_set.empty()) {
@@ -301,9 +295,8 @@ static int xmp_unlink(const char *path) {
 #endif
 
     int res;
-    auto tags_status = tagFS.parseTags(path);
-    if (tags_status.second != 0) return -errno;
-    tagvec tag_vec = tags_status.first;
+    auto [tag_vec, status] = tagFS.parseTags(path);
+    if (status != 0) return -errno;
     std::string file_path = tagFS.getFileRealPath(tag_vec);
     inode file_inode = tagFS.getFileInode(tag_vec);
 
@@ -352,9 +345,8 @@ static int xmp_symlink(const char *from, const char *to) {
         return -errno;
     }
 
-    auto tags_status_from = tagFS.parseTags(from);
-    if (tags_status_from.second != 0) return -errno;
-    tagvec tag_vec_from = tags_status_from.first;
+    auto [tag_vec_from, status_from] = tagFS.parseTags(from);
+    if (status_from != 0) return -errno;
     std::string link_file_path = tagFS.getFileRealPath(tag_vec_from);
 
     inode new_inode = tagFS.getNewInode();
