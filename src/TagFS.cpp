@@ -1,20 +1,39 @@
 #include "TagFS.h"
 
+
+strvec TagFS::getNonFileTags(){
+    strvec res{};
+    for(auto const& [tag, inode]: tagInodeMap) {
+        if(tag.type == TAG_TYPE_REGULAR) {
+            res.push_back(tag.name);
+        }
+    }
+    return res;
+
+}
+
+
+
 std::pair<tagvec, int> TagFS::parseTags(const char *path) {
     tagvec res{};
-//    auto spath = std::string(path);
     auto splitted = split(path, "/");
 
 #ifdef DEBUG
     std::cout << "Splitted: " << splitted << std::endl;
 #endif
 
-    // handle '/' at the end
-//    if (splitted[-1].empty()) {
-//        splitted.pop_back();
-//    }
-//    if (splitted[0].empty()) {
-//        splitted.erase(splitted.begin());
+
+//    if (splitted.empty() || splitted[0] == ".") {
+//
+//        for(auto const& [tag, inode]: tagInodeMap) {
+//            if(tag.type == TAG_TYPE_FILE) {
+//                res.push_back(tag);
+//            }
+//        }
+//#ifdef DEBUG
+//        std::cout << "Dot parse: " << path << " : " << res << std::endl;
+//#endif
+//        return {res, 0};
 //    }
 
     for (auto &tagName: splitted) {
@@ -30,7 +49,7 @@ std::pair<tagvec, int> TagFS::parseTags(const char *path) {
 #ifdef DEBUG
     std::cout << "Parsed path: " << path << " : " << res << std::endl;
 #endif
-    return {{res}, 0};
+    return {res, 0};
 }
 
 inode TagFS::getFileInode(tagvec& tags) {
