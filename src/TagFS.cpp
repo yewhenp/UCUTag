@@ -95,28 +95,6 @@ int TagFS::createNewFileMetaData(tagvec &tags, inode newInode) {
     return 0;
 }
 
-inodeset TagFS::select(const char *path, bool cache) {
-    tagvec tags = tagFS.parseTags(path);
-    inodeset intersect;
-    bool i = true;
-    for (const auto &tag: tags) {
-        auto inodes = tagInodeMap[tag];
-        if (i) {
-            intersect.insert(inodes.begin(), inodes.end());
-            i = false;
-        } else {
-            inodeset c;
-            for (auto& inode : intersect) {
-                if (inodes.count(inode) > 0) {
-                    c.insert(inode);
-                }
-            }
-            intersect = c;
-        }
-    }
-    return intersect;
-}
-
 int TagFS::deleteFileMetaData(tagvec &tags, inode fileInode) {
     if (tags[tags.size() - 1].type != TAG_TYPE_FILE) {
 #ifdef DEBUG

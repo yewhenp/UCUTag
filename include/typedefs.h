@@ -24,7 +24,7 @@ typedef struct tag_t {
 template<>
 struct std::hash<tag_t> {
     std::size_t operator()(const tag_t &k) const {
-        return ((hash<string>()(k.name) ^ (hash<std::size_t>()(k.id) << 1)) >> 1) ^ (hash<std::size_t>()(k.type) << 1);
+        return ((hash<string>()(k.name)) ^ (hash<std::size_t>()(k.type) << 1));
     }
 };
 
