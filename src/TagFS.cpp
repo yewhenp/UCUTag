@@ -130,14 +130,14 @@ int TagFS::deleteFileMetaData(tagvec &tags, inode fileInode) {
     }
 
     inodeFilenameMap.erase(fileInode);
-    inodeTagMap.erase(fileInode);
-    for (auto &tag: tags) {
+
+    for (auto &tag: inodeTagMap[fileInode]) {
         tagInodeMap[tag].erase(fileInode);
-        if (tagInodeMap[tag].empty()) {
-            tagNameTag.erase(tag.name);
-            tagInodeMap.erase(tag);
-        }
     }
+    tagNameTag.erase(tags.back().name);
+    tagInodeMap.erase(tags.back());
+    inodeTagMap.erase(fileInode);
+
 
     return 0;
 }

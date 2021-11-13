@@ -37,6 +37,24 @@ std::ostream& operator<<(std::ostream& os, const std::vector<T>& v) {
     return os;
 }
 
+template <class A, class B>
+std::ostream& operator<<(std::ostream& os, const std::unordered_map<A, B>& m) {
+    os << "Printing map: " << "\n";
+    for(const auto& elem : m) {
+        os << elem.first << ": " << elem.second <<  "\n";
+    }
+    return os;
+}
+
+template <class A>
+std::ostream& operator<<(std::ostream& os, const std::unordered_set<A>& s) {
+    os << "Printing set: " << "\n";
+    for(const auto& elem : s) {
+        os << elem <<  "\n";
+    }
+    return os;
+}
+
 
 std::ostream& operator<<(std::ostream &os, const tag_t &tag);
 

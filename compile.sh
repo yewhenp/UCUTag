@@ -8,6 +8,6 @@ mkdir -p build
 (
   cd build
   cmake -G"Unix Makefiles" -DCMAKE_BUILD_TYPE=${1-Release} ..
-  make
+  make -j4
 )
 #rm -rf build

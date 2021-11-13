@@ -107,6 +107,11 @@ static int xmp_access(const char *path, int mask) {
 
     auto [tag_vec, status] = tagFS.parseTags(path);
     if (status != 0) return -errno;
+
+    // return 0 for directory
+    if (tag_vec.back().type == TAG_TYPE_REGULAR) {
+        return 0;
+    }
     std::string file_path = tagFS.getFileRealPath(tag_vec);
     res = access(file_path.c_str(), mask);
     if (res == -1)
@@ -382,6 +387,9 @@ static int xmp_rename(const char *from, const char *to) {
 //    for(auto& name: split(to, "/")){
 //        tag_vec_to.push_back({TAG_TYPE_REGULAR, name});
 //    }
+    if (tagFS.tagNameTag.find(tag_vec_to.back().name) != tagFS.tagNameTag.end() && tag_vec_to.back().type == TAG_TYPE_REGULAR ) {
+        tag_vec_to.push_back(tag_vec_from.back());
+    }
     tag_vec_to.back().type = tag_vec_from.back().type;
 
     if (tag_vec_from[tag_vec_from.size() - 1].type == TAG_TYPE_FILE) {
@@ -552,15 +560,6 @@ static int xmp_create(const char *path, mode_t mode, struct fuse_file_info *fi) 
         return -errno;
     }
 
-    inodeset file_inode_set = tagFS.getInodesFromTags(tag_vec);
-
-    if (!file_inode_set.empty()) {
-        errno = EEXIST;
-#ifdef DEBUG
-        std::cerr << "path already exist: " << path << std::endl;
-#endif
-        return -errno;
-    }
 
     inode new_inode = tagFS.getNewInode();
     std::string new_path = std::to_string(new_inode);
@@ -576,7 +575,6 @@ static int xmp_create(const char *path, mode_t mode, struct fuse_file_info *fi) 
 #ifdef DEBUG
     std::cout << " >>> create open done: " << new_path << std::endl;
 #endif
-
 
     if (tagFS.createNewFileMetaData(tag_vec, new_inode) != 0) {
         close(fd);
