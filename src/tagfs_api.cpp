@@ -46,6 +46,8 @@
 #include <ctime>
 #include <filesystem>
 
+#include "string_utils.h"
+
 namespace fs = std::filesystem;
 
 #ifdef HAVE_SETXATTR
@@ -62,6 +64,8 @@ struct tag_dirp {
     inodeset::iterator entry;
 };
 
+
+
 static int xmp_getattr(const char *path, struct stat *stbuf) {
     int res;
 
@@ -69,13 +73,8 @@ static int xmp_getattr(const char *path, struct stat *stbuf) {
     std::cout << " >>> getattr: " << path << std::endl;
 #endif
 
-    if ( strcmp( path, "/" ) == 0 ) {
-        stbuf->st_uid = getuid(); // The owner of the file/directory is the user who mounted the filesystem
-        stbuf->st_gid = getgid(); // The group of the file/directory is the same as the group of the user who mounted the filesystem
-        stbuf->st_atime = time( nullptr ); // The last "a"ccess of the file/directory is right now
-        stbuf->st_mtime = time( nullptr ); // The last "m"odification of the file/directory is right now
-        stbuf->st_mode = S_IFDIR | 0755;
-        stbuf->st_nlink = 2; // Why "two" hardlinks instead of "one"? The answer is here: http://unix.stackexchange.com/a/101536
+    if ( strcmp( path, "/" ) == 0 || strcmp( path, "/@" ) == 0) {
+        fillTagStat(stbuf);
         return 0;
     }
 
@@ -83,12 +82,7 @@ static int xmp_getattr(const char *path, struct stat *stbuf) {
     if (status != 0) return -errno;
 
     if ( tag_vec.back().type == TAG_TYPE_REGULAR ) {
-        stbuf->st_uid = getuid(); // The owner of the file/directory is the user who mounted the filesystem
-        stbuf->st_gid = getgid(); // The group of the file/directory is the same as the group of the user who mounted the filesystem
-        stbuf->st_atime = time( nullptr ); // The last "a"ccess of the file/directory is right now
-        stbuf->st_mtime = time( nullptr ); // The last "m"odification of the file/directory is right now
-        stbuf->st_mode = S_IFDIR | 0755;
-        stbuf->st_nlink = 2; // Why "two" hardlinks instead of "one"? The answer is here: http://unix.stackexchange.com/a/101536
+        fillTagStat(stbuf);
         return 0;
     }
 
@@ -145,9 +139,6 @@ static int xmp_opendir(const char *path, struct fuse_file_info *fi) {
 #endif
 
     int res = 0;
-
-    // create dirent
-//    auto *d = static_cast<tag_dirp *> (malloc(sizeof(struct tag_dirp)));
     tag_dirp* d;
     try {
         d = new tag_dirp{};
@@ -156,22 +147,15 @@ static int xmp_opendir(const char *path, struct fuse_file_info *fi) {
     }
 
 #ifdef DEBUG
-    std::cerr << " >>> opendir malloc done" << std::endl;
+    std::cerr << " >>> opendir new done" << std::endl;
 #endif
 
     // fill and save pointer to dirent
     auto [tags, status] = tagFS.parseTags(path);
     if (status != 0) return -errno;
 
-#ifdef DEBUG
-    std::cerr << " >>> opendir before move" << std::endl;
-#endif
-
     d->inodes = std::move(tagFS.getInodesFromTags(tags));
 
-#ifdef DEBUG
-    std::cerr << " >>> opendir after move" << std::endl;
-#endif
 
 
     d->entry = d->inodes.begin();
@@ -203,7 +187,16 @@ static int xmp_readdir(const char *path, void *buf, fuse_fill_dir_t filler,
     while (d->entry != d->inodes.end()) {
         struct stat st{};
         if (lstat(std::to_string(*d->entry).c_str(), &st) == -1) status = -1;
-        filler(buf, tagFS.inodeFilenameMap[*d->entry].c_str(), &st, 0);
+        if (tagFS.inodeFilenameMap[*d->entry] == "@"){
+            for(auto& nonFileTag: tagFS.getNonFileTags()){
+                fillTagStat(&st);
+                filler(buf, nonFileTag.c_str(), &st, 0);
+            }
+        } else {
+            filler(buf, tagFS.inodeFilenameMap[*d->entry].c_str(), &st, 0);
+        }
+
+
         d->entry++;
     }
 
@@ -224,7 +217,6 @@ static int xmp_mkdir(const char *path, mode_t mode) {
 #ifdef DEBUG
     std::cout << " >>> mkdir: " << path << std::endl;
 #endif
-//    auto spath = std::string(path);
     strvec tagNames = split(path, "/");
     return tagFS.createRegularTags(tagNames);
 }
@@ -919,6 +911,15 @@ void *xmp_init(struct fuse_conn_info *conn) {
     FUSE_ENABLE_SETVOLNAME(conn);
     FUSE_ENABLE_XTIMES(conn);
 #endif
+    int fd;
+    auto tag_vec = tagvec(1, {TAG_TYPE_REGULAR, "@"});
+    inode new_inode = tagFS.getNewInode();
+    std::string new_path = std::to_string(new_inode);
+    fd = open(new_path.c_str(), O_WRONLY | O_APPEND | O_CREAT, 0644);
+    if (tagFS.createNewFileMetaData(tag_vec, new_inode) != 0) {
+        close(fd);
+        unlink(new_path.c_str());
+    }
     return nullptr;
 }
 

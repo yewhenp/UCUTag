@@ -19,7 +19,6 @@ public:
     int deleteFileMetaData(tagvec &tags, inode fileInode);
     int deleteRegularTags(strvec &tagNames);
     int createRegularTags(strvec &tagNames);
-    inodeset select(const char *path, bool cache = false);
 
 public:
     tagInodeMap_t tagInodeMap{};
@@ -27,7 +26,8 @@ public:
     inodeFilenameMap_t inodeFilenameMap{};
     tagNameTag_t tagNameTag{};
 
-    size_t new_inode_counter = 1;
+    size_t new_inode_counter = 0;
+    strvec getNonFileTags();
 };
 
 extern TagFS tagFS;
