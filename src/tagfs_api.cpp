@@ -186,13 +186,13 @@ static int xmp_readdir(const char *path, void *buf, fuse_fill_dir_t filler,
 
     while (d->entry != d->inodes.end()) {
         struct stat st{};
-        if (lstat(std::to_string(*d->entry).c_str(), &st) == -1) status = -1;
         if (tagFS.inodeFilenameMap[*d->entry] == "@"){
             for(auto& nonFileTag: tagFS.getNonFileTags()){
                 fillTagStat(&st);
                 filler(buf, nonFileTag.c_str(), &st, 0);
             }
         } else {
+            if (lstat(std::to_string(*d->entry).c_str(), &st) == -1) status = -1;
             filler(buf, tagFS.inodeFilenameMap[*d->entry].c_str(), &st, 0);
         }
 
@@ -917,9 +917,9 @@ void *xmp_init(struct fuse_conn_info *conn) {
     std::string new_path = std::to_string(new_inode);
     fd = open(new_path.c_str(), O_WRONLY | O_APPEND | O_CREAT, 0644);
     if (tagFS.createNewFileMetaData(tag_vec, new_inode) != 0) {
-        close(fd);
         unlink(new_path.c_str());
     }
+    close(fd);
     return nullptr;
 }
 
