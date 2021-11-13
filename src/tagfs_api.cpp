@@ -187,9 +187,12 @@ static int xmp_readdir(const char *path, void *buf, fuse_fill_dir_t filler,
     while (d->entry != d->inodes.end()) {
         struct stat st{};
         if (tagFS.inodeFilenameMap[*d->entry] == "@"){
-            for(auto& nonFileTag: tagFS.getNonFileTags()){
-                fillTagStat(&st);
-                filler(buf, nonFileTag.c_str(), &st, 0);
+            for(auto& nonFileTagName: tagFS.getNonFileTags()){
+                std::cout << nonFileTagName << ": " << tagFS.tagNameTag[nonFileTagName] << std::endl;
+                if (tagFS.tagNameTag[nonFileTagName].type == TAG_TYPE_REGULAR) {
+                    fillTagStat(&st);
+                    filler(buf, nonFileTagName.c_str(), &st, 0);
+                }
             }
         } else {
             if (lstat(std::to_string(*d->entry).c_str(), &st) == -1) status = -1;
