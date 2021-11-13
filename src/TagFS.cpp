@@ -84,7 +84,7 @@ inode TagFS::getNewInode() {
 
 int TagFS::createNewFileMetaData(tagvec &tags, inode newInode) {
     tags[tags.size() - 1].type = TAG_TYPE_FILE;
-    tagset set(tags.begin(), tags.end());
+    tagset tset(tags.begin(), tags.end());
 
     if (tagInodeMap.find(tags[tags.size() - 1]) != tagInodeMap.end()) {
 #ifdef DEBUG
@@ -94,7 +94,7 @@ int TagFS::createNewFileMetaData(tagvec &tags, inode newInode) {
     }
 
     inodeFilenameMap[newInode] = tags[tags.size() - 1].name;
-    inodeTagMap[newInode] = set;
+    inodeTagMap[newInode] = tset;
     for (auto &tag: tags) {
         tagInodeMap[tag].insert(newInode);
         tagNameTag[tag.name] = tag;
@@ -111,14 +111,14 @@ int TagFS::deleteFileMetaData(tagvec &tags, inode fileInode) {
     }
 
     inodeFilenameMap.erase(fileInode);
-    inodeTagMap.erase(fileInode);
-    for (auto &tag: tags) {
+    for (auto &tag: inodeTagMap[fileInode]) {
         tagInodeMap[tag].erase(fileInode);
-        if (tagInodeMap[tag].empty()) {
-            tagNameTag.erase(tag.name);
-            tagInodeMap.erase(tag);
-        }
+//        if (tagInodeMap[tag].empty()) {
+//            tagNameTag.erase(tag.name);
+//            tagInodeMap.erase(tag);
+//        }
     }
+    inodeTagMap.erase(fileInode);
 
     return 0;
 }
