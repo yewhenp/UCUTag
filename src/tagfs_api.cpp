@@ -406,6 +406,7 @@ static void mknod_symlink(fuse_req_t req, fuse_ino_t parent,
                           const char *link) {
     int res;
     Inode &inode_p = get_inode(parent);
+    fuse_entry_param e{};
     auto saverr = ENOMEM;
 
     if (S_ISDIR(mode))
@@ -418,7 +419,7 @@ static void mknod_symlink(fuse_req_t req, fuse_ino_t parent,
     if (res == -1)
         goto out;
 
-    fuse_entry_param e;
+
     saverr = do_lookup(parent, name, &e);
     if (saverr)
         goto out;
@@ -480,7 +481,6 @@ static void sfs_link(fuse_req_t req, fuse_ino_t ino, fuse_ino_t parent,
     }
 
     fuse_reply_entry(req, &e);
-    return;
 }
 
 
@@ -513,7 +513,7 @@ static void sfs_unlink(fuse_req_t req, fuse_ino_t parent, const char *name) {
     // to test reused inode numbers.
     // Skip this when inode has an open file and when writeback cache is enabled.
     if (!fs.timeout) {
-        fuse_entry_param e;
+        fuse_entry_param e{};
         auto err = do_lookup(parent, name, &e);
         if (err) {
             fuse_reply_err(req, err);
@@ -592,7 +592,7 @@ static void sfs_readlink(fuse_req_t req, fuse_ino_t ino) {
 
 struct DirHandle {
     DIR *dp{nullptr};
-    off_t offset;
+    off_t offset{};
 
     DirHandle() = default;
 
@@ -756,7 +756,6 @@ static void do_readdir(fuse_req_t req, fuse_ino_t ino, size_t size,
         fuse_reply_buf(req, buf, size - rem);
     }
     delete[] buf;
-    return;
 }
 
 
@@ -797,7 +796,7 @@ static void sfs_create(fuse_req_t req, fuse_ino_t parent, const char *name,
     }
 
     fi->fh = fd;
-    fuse_entry_param e;
+    fuse_entry_param e{};
     auto err = do_lookup(parent, name, &e);
     if (err) {
         if (err == ENFILE || err == EMFILE)
@@ -937,7 +936,7 @@ static void sfs_write_buf(fuse_req_t req, fuse_ino_t ino, fuse_bufvec *in_buf,
 
 
 static void sfs_statfs(fuse_req_t req, fuse_ino_t ino) {
-    struct statvfs stbuf;
+    struct statvfs stbuf{};
 
     auto res = fstatvfs(get_fs_fd(ino), &stbuf);
     if (res == -1)
@@ -1235,6 +1234,7 @@ int main(int argc, char *argv[]) {
 
     fuse_lowlevel_ops sfs_oper{};
     assign_operations(sfs_oper);
+    struct fuse_loop_config loop_config{};
     auto se = fuse_session_new(&args, &sfs_oper, sizeof(sfs_oper), &fs);
     if (se == nullptr)
         goto err_out1;
@@ -1246,7 +1246,7 @@ int main(int argc, char *argv[]) {
     umask(0);
 
     // Mount and run main loop
-    struct fuse_loop_config loop_config;
+
     loop_config.clone_fd = 0;
     loop_config.max_idle_threads = 10;
     if (fuse_session_mount(se, argv[2]) != 0)

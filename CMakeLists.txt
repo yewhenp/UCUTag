@@ -48,9 +48,9 @@ find_package(FUSE3 REQUIRED)
 set(CMAKE_CXX_FLAGS ${CMAKE_CXX_FLAGS} "-D_FILE_OFFSET_BITS=64")
 
 include_directories(include)
-add_executable(${EXECUTABLE_NAME} src/tagfs_api_old.cpp src/TagFS.cpp include/TagFS.h include/string_utils.h src/string_utils.cpp include/typedefs.h src/typedefs.cpp include/tagfs_api_old.h src/tagfs_api.cpp)
-target_include_directories(${EXECUTABLE_NAME} PRIVATE ${FUSE_INCLUDE_DIR})
-target_link_libraries(${EXECUTABLE_NAME} ${FUSE_LIBRARIES})
+add_executable(${EXECUTABLE_NAME} src/tagfs_api.cpp src/TagFS.cpp src/string_utils.cpp src/typedefs.cpp)
+target_include_directories(${EXECUTABLE_NAME} PRIVATE ${FUSE3_INCLUDE_DIR})
+target_link_libraries(${EXECUTABLE_NAME} FUSE3::FUSE3)
 set_target_properties(${EXECUTABLE_NAME}
 		PROPERTIES
 		RUNTIME_OUTPUT_DIRECTORY ${CMAKE_SOURCE_DIR}/bin)
