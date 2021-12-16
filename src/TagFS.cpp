@@ -180,3 +180,13 @@ int TagFS::createRegularTags(strvec &tagNames) {
     return 0;
 }
 
+TagFS::TagFS() {
+    mongocxx::instance instance{}; // This should be done only once.
+    mongocxx::uri uri("mongodb://localhost:27017");
+    mongocxx::client client(uri);
+
+    mongocxx::database db = client["ucutag"];
+
+
+}
+

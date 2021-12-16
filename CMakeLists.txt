@@ -45,18 +45,33 @@ message(STATUS "USING PVS: ${ENABLE_PVS_STUDIO}")
 set(CMAKE_MODULE_PATH ${CMAKE_MODULE_PATH} ${CMAKE_CURRENT_SOURCE_DIR}/cmake)
 find_package(FUSE REQUIRED)
 
+
+find_package(mongocxx REQUIRED)
+find_package(bsoncxx REQUIRED)
+include_directories(${LIBMONGOCXX_INCLUDE_DIR})
+include_directories(${LIBBSONCXX_INCLUDE_DIR})
+
+find_package(Boost REQUIRED)
+include_directories(${Boost_INCLUDE_DIRS})
+
+#add_executable(test_mongo_db src/mongo.cpp)
+
+#target_link_libraries(test_mongo_db PRIVATE mongo::mongocxx_shared mongo::bsoncxx_shared ${Boost_LIBRARIES})
+#set_target_properties(test_mongo_db PROPERTIES RUNTIME_OUTPUT_DIRECTORY ${CMAKE_SOURCE_DIR}/bin)
+
+
 # REQUIRED FOR FUSE
 set(CMAKE_CXX_FLAGS ${CMAKE_CXX_FLAGS} "-D_FILE_OFFSET_BITS=64")
 
 include_directories(include)
 add_executable(${EXECUTABLE_NAME} src/tagfs_api.cpp src/TagFS.cpp include/TagFS.h include/string_utils.h src/string_utils.cpp include/typedefs.h src/typedefs.cpp include/tagfs_api.h)
 target_include_directories(${EXECUTABLE_NAME} PRIVATE ${FUSE_INCLUDE_DIR})
-target_link_libraries(${EXECUTABLE_NAME} ${FUSE_LIBRARIES})
+target_link_libraries(${EXECUTABLE_NAME} ${FUSE_LIBRARIES} mongo::mongocxx_shared mongo::bsoncxx_shared ${Boost_LIBRARIES})
 set_target_properties(${EXECUTABLE_NAME}
 		PROPERTIES
 		RUNTIME_OUTPUT_DIRECTORY ${CMAKE_SOURCE_DIR}/bin)
 
-set (ALL_TARGETS ${EXECUTABLE_NAME})
+set (ALL_TARGETS ${EXECUTABLE_NAME} test_mongo_db)
 
 # Include fixed CMake configuration
 include(cmake/config.cmake)
