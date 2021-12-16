@@ -308,7 +308,7 @@ static int do_lookup(fuse_ino_t parent, const char *name,
                      fuse_entry_param *e) {
     if (fs.debug)
         cerr << "DEBUG: lookup(): name=" << name
-             << ", parent=" << parent << endl;
+             << ", parent=" << get_inode(parent).fd << endl;
     memset(e, 0, sizeof(*e));
     e->attr_timeout = fs.timeout;
     e->entry_timeout = fs.timeout;
@@ -1171,10 +1171,10 @@ static cxxopts::ParseResult parse_options(int argc, char **argv) {
         exit(2);
     }
 
-    fs.debug = options.count("debug") != 0;
+    fs.debug = true;//options.count("debug") != 0;
     fs.nosplice = options.count("nosplice") != 0;
-    char *resolved_path = realpath(argv[1], NULL);
-    if (resolved_path == NULL)
+    char *resolved_path = realpath(argv[1], nullptr);
+    if (resolved_path == nullptr)
         warn("WARNING: realpath() failed with");
     fs.source = std::string{resolved_path};
     free(resolved_path);
@@ -1191,6 +1191,7 @@ static void maximize_fd_limit() {
         return;
     }
     lim.rlim_cur = lim.rlim_max;
+    std::cout << lim.rlim_max << std::endl;
     res = setrlimit(RLIMIT_NOFILE, &lim);
     if (res != 0)
         warn("WARNING: setrlimit() failed with");
