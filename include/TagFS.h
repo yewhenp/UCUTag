@@ -27,6 +27,20 @@ using bsoncxx::builder::stream::open_document;
 
 
 class TagFS {
+private:
+    const std::string TAG_NAME = "tagname";
+    const std::string TAG_TYPE = "tagtype";
+    const std::string _ID      = "_id";
+    const std::string SET      = "$set";
+
+    mongocxx::database db;
+    mongocxx::collection tags;
+    mongocxx::collection tagToInode;
+    mongocxx::collection inodeToTag;
+    mongocxx::collection inodetoFilename;
+    std::hash<std::string> hasher;
+
+
 public:
     TagFS();
     std::pair<tagvec, int> parseTags(const char *path);
@@ -42,20 +56,26 @@ public:
 public:
     // TODO: caching
     // tagid = hash(tagname)
-//    tags:               tagid -> {tagname, tagtype}
+//    tags:               tagid -> {tagname, tagtype}       [ {tagid, tagname, tagtype}}
 //    tagInodeMap:        tagid -> [i1 i2 i3]
 //    nodeToTag:          ii -> [tagid1 tagid2 ..]
 //    inodetoFilename:    ii -> [filename ]
 
 //    inode_counter - in init max(inode)
 
+
+////////////////////////////////////////////  tags collection manipulation  ///////////////////////////////////////////
+
     std::size_t tagNameToTagid(std::string tagname);
 
-    void tagsAdd(tag_t tag);
-    void tagsUpdate(std::size_t tagId, tag_t newTag);
-    tag_t tagsGet(std::size_t tagId);
-    void tagsDelete(std::size_t tagId);
+    int tagsAdd(tag_t tag);                                                     // -1 if error else 0
+    int tagsUpdate(std::size_t tagId, tag_t newTag);                            // -1 if error else 0
+    tag_t tagsGet(std::size_t tagId);                                           // {} if error
+    int tagsDelete(std::size_t tagId);                                          // -1 if error else 0
 
+//////////////////////////////////////////  tags collection manipulation  /////////////////////////////////////////////
+
+    void tagInodeMapInsert(std::size_t tagId, std::vector<inode> inodes);
     void tagInodeMapUpdate(std::size_t tagId, std::vector<inode> inodes);
     std::vector<inode> tagInodeMapGet(std::size_t tagId);
     void tagInodeMapDelete(std::size_t tagId);
