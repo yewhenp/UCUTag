@@ -104,6 +104,31 @@ num_t TagFS::getNewInode() {
     return new_inode_counter++;
 }
 
+std::pair<tagvec, int> TagFS::prepareFileCreation(const char *path) {
+    auto[tag_vec, status] = parseTags(path);
+
+    // We failed to parse inner component of the path
+    auto tagNames = split(path, "/");
+    if (!(status == 0 || tag_vec.size() == tagNames.size() - 1)) {
+        errno = ENOENT;
+        return {tag_vec, -errno};
+    }
+    // Check if combination of existing tags is unique
+    if (status == 0) {
+        inodeset file_inode_set = getInodesFromTags(tag_vec);
+
+        if (!file_inode_set.empty()) {
+            errno = EEXIST;
+#ifdef DEBUG
+            std::cerr << "path already exist: " << path << std::endl;
+#endif
+            return {tag_vec, -errno};
+        }
+        return {tag_vec, 0};
+    }
+    return {tag_vec, status};
+}
+
 int TagFS::createNewFileMetaData(tagvec &tags, num_t newInode) {
     auto& fileTag = tags.back();
     fileTag.type = TAG_TYPE_FILE;
@@ -121,10 +146,12 @@ int TagFS::createNewFileMetaData(tagvec &tags, num_t newInode) {
     for (auto &tag: tags) {
         auto tagId = tagNameToTagid(tag.name);
         tagInodeMapAddInode(tagId, newInode);
-        nodeToTagAddTagId(newInode, tagId);
+        inodeToTagAddTagId(newInode, tagId);
     }
     return 0;
 }
+
+
 
 int TagFS::deleteFileMetaData(tagvec &tags, num_t fileInode) {
     if (tags.back().type != TAG_TYPE_FILE) {
@@ -133,41 +160,38 @@ int TagFS::deleteFileMetaData(tagvec &tags, num_t fileInode) {
 #endif
         return -1;
     }
-
+    auto fileTagId = tagNameToTagid(tags.back().name);
+    tagInodeMapDeleteInodes({fileInode});
+    inodeToTagDelete(fileInode);
     inodetoFilenameDelete(fileInode);
-
-    for (auto &tag: nodeToTagGet(fileInode)) {
-        auto tagInodeMapGet();
-        tagInodeMap[tag].erase(fileInode);
+    auto residualInodes = tagInodeMapGet(fileTagId);
+    if (residualInodes.empty()) {
+        inodeToTagDeleteTags({static_cast<long>(fileTagId)});
+        tagInodeMapDelete(fileTagId);
+        tagsDelete(fileTagId);
     }
-    tagNameTag.erase(tags.back().name);
-    tagInodeMap.erase(tags.back());
-    inodeTagMap.erase(fileInode);
 
 
     return 0;
 }
 
-int TagFS::deleteRegularTags(strvec &tagNames) {
+int TagFS::deleteRegularTags(tagvec &tags) {
     // check if tags exist and are regular
-    for (auto &tagName: tagNames) {
-        if (tagNameTag.find(tagName) == tagNameTag.end()) {
-            errno = ENOENT;
-            return -1;
-        }
-        if (tagNameTag[tagName].type != TAG_TYPE_REGULAR) {
+    for (auto &tag: tags) {
+        if (tag.type != TAG_TYPE_REGULAR) {
             errno = ENOTDIR;
             return -1;
         }
     }
-
-    for (auto &tagName: tagNames) {
-        auto tag = tagNameTag[tagName];
-        for (auto &inode: tagInodeMap[tag])
-            inodeTagMap[inode].erase(tag);
-        tagNameTag.erase(tagName);
-        tagInodeMap.erase(tag);
+    std::vector<num_t> tagIds;
+    tagIds.reserve(tags.size());
+    for (auto &tag: tags) {
+        auto tagId = tagNameToTagid(tag.name);
+        tagIds.push_back(tagId);
+        tagInodeMapDelete(tagId);
+        tagsDelete(tagId);
     }
+    inodeToTagDeleteTags(tagIds);
     return 0;
 }
 

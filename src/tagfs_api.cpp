@@ -235,6 +235,8 @@ static int xmp_mkdir(const char *path, mode_t mode) {
     return tagFS.createRegularTags(tagNames);
 }
 
+
+
 static int xmp_mknod(const char *path, mode_t mode, dev_t rdev) {
 #ifdef DEBUG
     std::cout << " >>> mknod: " << path << std::endl;
@@ -242,26 +244,9 @@ static int xmp_mknod(const char *path, mode_t mode, dev_t rdev) {
 
     int res;
     // We expect that all tags exist or last one might not exist
-    auto[tag_vec, status] = tagFS.parseTags(path);
-
-    // We failed to parse inner component of the path
-    auto tagNames = split(path, "/");
-    if (!(status == 0 || tag_vec.size() == tagNames.size() - 1)) {
-        errno = ENOENT;
-        return -errno;
-    }
-    // Check if combination of existing tags is unique
-    if (status == 0) {
-        inodeset file_inode_set = tagFS.getInodesFromTags(tag_vec);
-
-        if (!file_inode_set.empty()) {
-            errno = EEXIST;
-#ifdef DEBUG
-            std::cerr << "path already exist: " << path << std::endl;
-#endif
-            return -errno;
-        }
-    }
+    auto[tag_vec, status] = tagFS.prepareFileCreation(path);
+    if (status != 0)
+        return status;
     // TODO: not sure if it's needed: called for creation of all non-directory, non-symlink nodes.
     if (S_ISDIR(mode)) {
         xmp_mkdir(path, mode);
@@ -301,6 +286,10 @@ static int xmp_unlink(const char *path) {
     if (status != 0) return -errno;
     std::string file_path = tagFS.getFileRealPath(tag_vec);
     num_t file_inode = tagFS.getFileInode(tag_vec);
+    if (file_inode == num_t(-1)) {
+        errno = ENOENT;
+        return -errno;
+    }
 
     if (tagFS.deleteFileMetaData(tag_vec, file_inode) != 0) {
         errno = ENOENT;
@@ -319,150 +308,136 @@ static int xmp_rmdir(const char *path) {
     std::cout << " >>> rmdir: " << path << std::endl;
 #endif
 
-//    auto spath = std::string(path);
-    strvec tagNames = split(path, "/");
-    return tagFS.deleteRegularTags(tagNames);
-}
-
-static int xmp_symlink(const char *from, const char *to) {
-#ifdef DEBUG
-    std::cout << " >>> symlink: " << from << " -> " << to << std::endl;
-#endif
-
-    int res;
-
-    auto tag_vec_to = tagvec();
-    bool last_exist = false;
-    for(auto& tagName: split(to, "/")){
-        if (tagFS.tagNameTag.find(tagName) != tagFS.tagNameTag.end()) {
-            tag_vec_to.push_back(tagFS.tagNameTag[tagName]);
-            last_exist = true;
-        } else {
-            last_exist = false;
-            tag_vec_to.push_back({TAG_TYPE_REGULAR, tagName});
-        }
-    }
-    if (last_exist) {
-        errno = EEXIST;
-        return -errno;
-    }
-
-    auto [tag_vec_from, status_from] = tagFS.parseTags(from);
-    if (status_from != 0) return -errno;
-    std::string link_file_path = tagFS.getFileRealPath(tag_vec_from);
-
-    num_t new_inode = tagFS.getNewInode();
-    std::string new_path = std::to_string(new_inode);
-
-    res = symlink(link_file_path.c_str(), new_path.c_str());
-    if (res == -1)
-        return -errno;
-
-    if (tagFS.createNewFileMetaData(tag_vec_to, new_inode) != 0) {
-        unlink(new_path.c_str());
-        errno = EEXIST;
-        return -errno;
-    }
-
-    return 0;
-}
-
-// TODO: Replace dir rename with tag rename
-static int xmp_rename(const char *from, const char *to) {
-#ifdef DEBUG
-    std::cout << " >>> rename: " << from << " -> " << to << std::endl;
-#endif
-
-    auto[tag_vec_from, status] = tagFS.parseTags(from);
+    auto [tag_vec, status] = tagFS.parseTags(path);
     if (status != 0) return -errno;
+    return tagFS.deleteRegularTags(tag_vec);
+}
 
-    auto tag_vec_to = tagvec();
-    for(auto& tagName: split(to, "/")){
-        if (tagFS.tagNameTag.find(tagName) != tagFS.tagNameTag.end()) {
-            tag_vec_to.push_back(tagFS.tagNameTag[tagName]);
-        } else {
-            tag_vec_to.push_back({TAG_TYPE_REGULAR, tagName});
-        }
-    }
-
-//    auto tag_vec_to = tagvec();
-//    for(auto& name: split(to, "/")){
-//        tag_vec_to.push_back({TAG_TYPE_REGULAR, name});
+//static int xmp_symlink(const char *from, const char *to) {
+//#ifdef DEBUG
+//    std::cout << " >>> symlink: " << from << " -> " << to << std::endl;
+//#endif
+//
+//    int res;
+//
+//    auto [tag_vec_to, status_to] = tagFS.prepareFileCreation(to);
+//    if (status_to != 0) return status_to;
+//    auto [tag_vec_from, status_from] = tagFS.parseTags(from);
+//    if (status_from != 0) return -errno;
+//    std::string link_file_path = tagFS.getFileRealPath(tag_vec_from);
+//
+//    num_t new_inode = tagFS.getNewInode();
+//    std::string new_path = std::to_string(new_inode);
+//
+//    res = symlink(link_file_path.c_str(), new_path.c_str());
+//    if (res == -1)
+//        return -errno;
+//
+//    if (tagFS.createNewFileMetaData(tag_vec_to, new_inode) != 0) {
+//        unlink(new_path.c_str());
+//        errno = EEXIST;
+//        return -errno;
 //    }
-    if (tagFS.tagNameTag.find(tag_vec_to.back().name) != tagFS.tagNameTag.end() && tag_vec_to.back().type == TAG_TYPE_REGULAR ) {
-        tag_vec_to.push_back(tag_vec_from.back());
-    }
-    tag_vec_to.back().type = tag_vec_from.back().type;
+//
+//    return 0;
+//}
 
-    if (tag_vec_from[tag_vec_from.size() - 1].type == TAG_TYPE_FILE) {
-        num_t file_inode = tagFS.getFileInode(tag_vec_from);
-
-        if (tagFS.deleteFileMetaData(tag_vec_from, file_inode) != 0) {
-            errno = ENOENT;
-            return -errno;
-        }
-        if (tagFS.createNewFileMetaData(tag_vec_to, file_inode) != 0) {
-            errno = EEXIST;
-            return -errno;
-        }
-    } else {
-//        /tag1/tag2/  ->  /tag1_new/tag2_new
-        if (tag_vec_from.size() != tag_vec_to.size()) {
-#ifdef DEBUG
-            std::cerr << "When renaming multiple tags, froms and tos should be of the same length" << std::endl;
-#endif
-            errno = EINVAL;
-            return -errno;
-        }
-
-
-    }
-
-    return 0;
-}
-
-static int xmp_link(const char *from, const char *to) {
-#ifdef DEBUG
-    std::cout << " >>> link: " << from << " -> " << to << std::endl;
-#endif
-
-    int res;
-
-    auto tag_vec_to = tagvec();
-    bool last_exist = false;
-    for(auto& tagName: split(to, "/")){
-        if (tagFS.tagNameTag.find(tagName) != tagFS.tagNameTag.end()) {
-            tag_vec_to.push_back(tagFS.tagNameTag[tagName]);
-            last_exist = true;
-        } else {
-            last_exist = false;
-            tag_vec_to.push_back({TAG_TYPE_REGULAR, tagName});
-        }
-    }
-    if (last_exist) {
-        errno = EEXIST;
-        return -errno;
-    }
-
-    auto[tag_vec_from, status1] = tagFS.parseTags(from);
-    if (status1 != 0) return -errno;
-    std::string link_file_path = tagFS.getFileRealPath(tag_vec_from);
-
-    num_t new_inode = tagFS.getNewInode();
-    std::string new_path = std::to_string(new_inode);
-
-    res = link(link_file_path.c_str(), new_path.c_str());
-    if (res == -1)
-        return -errno;
-
-    if (tagFS.createNewFileMetaData(tag_vec_to, new_inode) != 0) {
-        unlink(new_path.c_str());
-        errno = EEXIST;
-        return -errno;
-    }
-
-    return 0;
-}
+//// TODO: Replace dir rename with tag rename
+//static int xmp_rename(const char *from, const char *to) {
+//#ifdef DEBUG
+//    std::cout << " >>> rename: " << from << " -> " << to << std::endl;
+//#endif
+//
+//    auto[tag_vec_from, status] = tagFS.parseTags(from);
+//    if (status != 0) return -errno;
+//
+//    auto tag_vec_to = tagvec();
+//    for(auto& tagName: split(to, "/")){
+//        if (tagFS.tagNameTag.find(tagName) != tagFS.tagNameTag.end()) {
+//            tag_vec_to.push_back(tagFS.tagNameTag[tagName]);
+//        } else {
+//            tag_vec_to.push_back({TAG_TYPE_REGULAR, tagName});
+//        }
+//    }
+//
+////    auto tag_vec_to = tagvec();
+////    for(auto& name: split(to, "/")){
+////        tag_vec_to.push_back({TAG_TYPE_REGULAR, name});
+////    }
+//    if (tagFS.tagNameTag.find(tag_vec_to.back().name) != tagFS.tagNameTag.end() && tag_vec_to.back().type == TAG_TYPE_REGULAR ) {
+//        tag_vec_to.push_back(tag_vec_from.back());
+//    }
+//    tag_vec_to.back().type = tag_vec_from.back().type;
+//
+//    if (tag_vec_from[tag_vec_from.size() - 1].type == TAG_TYPE_FILE) {
+//        num_t file_inode = tagFS.getFileInode(tag_vec_from);
+//
+//        if (tagFS.deleteFileMetaData(tag_vec_from, file_inode) != 0) {
+//            errno = ENOENT;
+//            return -errno;
+//        }
+//        if (tagFS.createNewFileMetaData(tag_vec_to, file_inode) != 0) {
+//            errno = EEXIST;
+//            return -errno;
+//        }
+//    } else {
+////        /tag1/tag2/  ->  /tag1_new/tag2_new
+//        if (tag_vec_from.size() != tag_vec_to.size()) {
+//#ifdef DEBUG
+//            std::cerr << "When renaming multiple tags, froms and tos should be of the same length" << std::endl;
+//#endif
+//            errno = EINVAL;
+//            return -errno;
+//        }
+//
+//
+//    }
+//
+//    return 0;
+//}
+//
+//static int xmp_link(const char *from, const char *to) {
+//#ifdef DEBUG
+//    std::cout << " >>> link: " << from << " -> " << to << std::endl;
+//#endif
+//
+//    int res;
+//
+//    auto tag_vec_to = tagvec();
+//    bool last_exist = false;
+//    for(auto& tagName: split(to, "/")){
+//        if (tagFS.tagNameTag.find(tagName) != tagFS.tagNameTag.end()) {
+//            tag_vec_to.push_back(tagFS.tagNameTag[tagName]);
+//            last_exist = true;
+//        } else {
+//            last_exist = false;
+//            tag_vec_to.push_back({TAG_TYPE_REGULAR, tagName});
+//        }
+//    }
+//    if (last_exist) {
+//        errno = EEXIST;
+//        return -errno;
+//    }
+//
+//    auto[tag_vec_from, status1] = tagFS.parseTags(from);
+//    if (status1 != 0) return -errno;
+//    std::string link_file_path = tagFS.getFileRealPath(tag_vec_from);
+//
+//    num_t new_inode = tagFS.getNewInode();
+//    std::string new_path = std::to_string(new_inode);
+//
+//    res = link(link_file_path.c_str(), new_path.c_str());
+//    if (res == -1)
+//        return -errno;
+//
+//    if (tagFS.createNewFileMetaData(tag_vec_to, new_inode) != 0) {
+//        unlink(new_path.c_str());
+//        errno = EEXIST;
+//        return -errno;
+//    }
+//
+//    return 0;
+//}
 
 static int xmp_chmod(const char *path, mode_t mode) {
 #ifdef DEBUG
@@ -534,64 +509,64 @@ static int xmp_utimens(const char *path, const struct timespec ts[2],
 }
 #endif
 
-static int xmp_create(const char *path, mode_t mode, struct fuse_file_info *fi) {
-#ifdef DEBUG
-    std::cout << " >>> create: " << path << std::endl;
-#endif
-
-    int fd;
-
-    auto tag_vec = tagvec();
-    bool last_exist = false;
-    for(auto& tagName: split(path, "/")){
-
-        if (tagFS.tagNameTag.find(tagName) != tagFS.tagNameTag.end()) {
-            tag_vec.push_back(tagFS.tagNameTag[tagName]);
-            last_exist = true;
-        } else {
-            last_exist = false;
-            tag_vec.push_back({TAG_TYPE_REGULAR, tagName});
-        }
-    }
-    if (last_exist) {
-#ifdef DEBUG
-        std::cout << " >>> create exiting because exist: " << path << std::endl;
-#endif
-
-        errno = EEXIST;
-        return -errno;
-    }
-
-
-    num_t new_inode = tagFS.getNewInode();
-    std::string new_path = std::to_string(new_inode);
-
-#ifdef DEBUG
-    std::cout << " >>> create inode got: " << new_path << std::endl;
-#endif
-
-    fd = open(new_path.c_str(), fi->flags, mode);
-    if (fd == -1)
-        return -errno;
-
-#ifdef DEBUG
-    std::cout << " >>> create open done: " << new_path << std::endl;
-#endif
-
-    if (tagFS.createNewFileMetaData(tag_vec, new_inode) != 0) {
-        close(fd);
-        unlink(new_path.c_str());
-        errno = EEXIST;
-        return -errno;
-    }
-
-#ifdef DEBUG
-    std::cout << " >>> create file data created: " << new_path << std::endl;
-#endif
-
-    fi->fh = fd;
-    return 0;
-}
+//static int xmp_create(const char *path, mode_t mode, struct fuse_file_info *fi) {
+//#ifdef DEBUG
+//    std::cout << " >>> create: " << path << std::endl;
+//#endif
+//
+//    int fd;
+//
+//    auto tag_vec = tagvec();
+//    bool last_exist = false;
+//    for(auto& tagName: split(path, "/")){
+//
+//        if (tagFS.tagNameTag.find(tagName) != tagFS.tagNameTag.end()) {
+//            tag_vec.push_back(tagFS.tagNameTag[tagName]);
+//            last_exist = true;
+//        } else {
+//            last_exist = false;
+//            tag_vec.push_back({TAG_TYPE_REGULAR, tagName});
+//        }
+//    }
+//    if (last_exist) {
+//#ifdef DEBUG
+//        std::cout << " >>> create exiting because exist: " << path << std::endl;
+//#endif
+//
+//        errno = EEXIST;
+//        return -errno;
+//    }
+//
+//
+//    num_t new_inode = tagFS.getNewInode();
+//    std::string new_path = std::to_string(new_inode);
+//
+//#ifdef DEBUG
+//    std::cout << " >>> create inode got: " << new_path << std::endl;
+//#endif
+//
+//    fd = open(new_path.c_str(), fi->flags, mode);
+//    if (fd == -1)
+//        return -errno;
+//
+//#ifdef DEBUG
+//    std::cout << " >>> create open done: " << new_path << std::endl;
+//#endif
+//
+//    if (tagFS.createNewFileMetaData(tag_vec, new_inode) != 0) {
+//        close(fd);
+//        unlink(new_path.c_str());
+//        errno = EEXIST;
+//        return -errno;
+//    }
+//
+//#ifdef DEBUG
+//    std::cout << " >>> create file data created: " << new_path << std::endl;
+//#endif
+//
+//    fi->fh = fd;
+//    return 0;
+//}
 
 static int xmp_open(const char *path, struct fuse_file_info *fi) {
 #ifdef DEBUG
@@ -602,39 +577,21 @@ static int xmp_open(const char *path, struct fuse_file_info *fi) {
     std::string file_path;
     num_t new_inode;
     inodeset file_inode_set;
-    tagvec tag_vec;
-    int status;
+//    tagvec tag_vec;
+//    int status;
 
     if (fi->flags & O_CREAT) {
-        tag_vec = tagvec();
-        bool last_exist = false;
-        for(auto& tagName: split(path, "/")){
-            if (tagFS.tagNameTag.find(tagName) != tagFS.tagNameTag.end()) {
-                tag_vec.push_back(tagFS.tagNameTag[tagName]);
-                last_exist = true;
-            } else {
-                last_exist = false;
-                tag_vec.push_back({TAG_TYPE_REGULAR, tagName});
-            }
-        }
-        if (last_exist) {
-            errno = EEXIST;
-            return -errno;
-        }
-        file_inode_set = tagFS.getInodesFromTags(tag_vec);
-        if (!file_inode_set.empty()) {
-            errno = EEXIST;
-#ifdef DEBUG
-            std::cerr << "path already exist: " << path << std::endl;
-#endif
-            return -errno;
-        }
+        auto[tag_vec, status] = tagFS.prepareFileCreation(path);
+        if (status != 0)
+            return status;
         new_inode = tagFS.getNewInode();
         file_path = std::to_string(new_inode);
+        if (tagFS.createNewFileMetaData(tag_vec, new_inode) != 0) {
+            errno = EEXIST;
+            return -errno;
+        }
     } else {
-        auto[tag_vec_tmp, status_tmp] = tagFS.parseTags(path);
-        tag_vec = tag_vec_tmp;
-        status = status_tmp;
+        auto[tag_vec, status] = tagFS.parseTags(path);
         if (status != 0) return -errno;
         file_inode_set = tagFS.getInodesFromTags(tag_vec);
         file_path = tagFS.getFileRealPath(tag_vec);
@@ -643,15 +600,6 @@ static int xmp_open(const char *path, struct fuse_file_info *fi) {
     fd = open(file_path.c_str(), fi->flags);
     if (fd == -1)
         return -errno;
-
-    if (fi->flags & O_CREAT) {
-        if (tagFS.createNewFileMetaData(tag_vec, new_inode) != 0) {
-            close(fd);
-            unlink(file_path.c_str());
-            errno = EEXIST;
-            return -errno;
-        }
-    }
 
     fi->fh = fd;
     return 0;
@@ -959,7 +907,7 @@ static struct fuse_operations xmp_oper = {
 #ifdef HAVE_UTIMENSAT
         .utimens	= xmp_utimens,
 #endif
-        .create        = xmp_create,
+//        .create        = xmp_create,
         .write_buf    = xmp_write_buf,
         .read_buf    = xmp_read_buf,
 #ifdef HAVE_POSIX_FALLOCATE

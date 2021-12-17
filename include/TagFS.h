@@ -50,8 +50,9 @@ public:
     num_t getNewInode();
     int createNewFileMetaData(tagvec &tags, num_t newInode);
     int deleteFileMetaData(tagvec &tags, num_t fileInode);
-    int deleteRegularTags(strvec &tagNames);
+    int deleteRegularTags(tagvec &tags);
     int createRegularTags(strvec &tagNames);
+    std::pair<tagvec, int> prepareFileCreation(const char *path);
 
 public:
     // TODO: caching
@@ -81,11 +82,14 @@ public:
     std::vector<num_t> tagInodeMapGet(std::size_t tagId);
     void tagInodeMapDelete(std::size_t tagId);
     void tagInodeMapAddInode(std::size_t tagId, num_t val);
+    void tagInodeMapDeleteInodes(std::vector<num_t> inodes);
 
-    void nodeToTagUpdate(num_t key, std::vector<std::size_t> tagsIds);
-    std::vector<std::size_t> nodeToTagGet(num_t key);
-    void nodeToTagDelete(num_t key);
-    void nodeToTagAddTagId(num_t key, std::size_t tagid);
+    void inodeToTagUpdate(num_t key, std::vector<std::size_t> tagsIds);
+    std::vector<std::size_t> inodeToTagGet(num_t key);
+    void inodeToTagDelete(num_t key);
+    void inodeToTagAddTagId(num_t key, std::size_t tagid);
+    void inodeToTagDeleteTags(std::vector<num_t> tagIds);
+
 
     void inodetoFilenameUpdate(num_t key, std::string filename);
     std::string inodetoFilenameGet(num_t key);
