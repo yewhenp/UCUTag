@@ -28,10 +28,18 @@ using bsoncxx::builder::stream::open_document;
 
 class TagFS {
 private:
+    // fields in collections
     const std::string TAG_NAME = "tagname";
     const std::string TAG_TYPE = "tagtype";
     const std::string _ID      = "_id";
     const std::string SET      = "$set";
+    const std::string INODES   = "inodes";
+    const std::string PUSH     = "$push";
+    const std::string PULL     = "$pull";
+    const std::string IN       = "$in";
+    const std::string TAGS     = "tags";
+    const std::string FILENAME = "filename";
+    const std::string GROUP    = "group";
 
     mongocxx::database db;
     mongocxx::collection tags;
@@ -39,6 +47,8 @@ private:
     mongocxx::collection inodeToTag;
     mongocxx::collection inodetoFilename;
     std::hash<std::string> hasher;
+
+    inline int collectionDelete(mongocxx::collection &collection, num_t id);
 
 
 public:
@@ -57,51 +67,57 @@ public:
 public:
     // TODO: caching
     // tagid = hash(tagname)
-//    tags:               tagid -> {tagname, tagtype}       [ {tagid, tagname, tagtype}}
-//    tagInodeMap:        tagid -> [i1 i2 i3]
-//    inodeToTag:          ii -> [tagid1 tagid2 ..]
-//    inodetoFilename:    ii -> [filename ]
+//    tags:               [ {tagid, tagname, tagtype} }
+//    tagInodeMap:        [ {tagid, inodes: [i1, i2, ...] } ]
+//    inodeToTag:         [ {inode, tagids: [tagid1, tagid2, ...] } ]
+//    inodetoFilename:    [ {inode, filename} ]
 
 //    inode_counter - in init max(inode)
 
 
 ////////////////////////////////////////////  tags collection manipulation  ///////////////////////////////////////////
 
-    std::size_t tagNameToTagid(std::string tagname);
+    num_t tagNameToTagid(const std::string& tagname);
 
 
-    int tagsAdd(tag_t tag);                                                     // -1 if error else 0
-    int tagsUpdate(std::size_t tagId, tag_t newTag);                            // -1 if error else 0
-    tag_t tagsGet(std::size_t tagId);                                           // {} if error
-    int tagsDelete(std::size_t tagId);                                          // -1 if error else 0
+    int tagsAdd(tag_t tag);                                               // -1 if error else 0
+    int tagsUpdate(num_t tagId, tag_t newTag);                            // -1 if error else 0
+    tag_t tagsGet(num_t tagId);                                           // {} if error
+    int tagsDelete(num_t tagId);                                          // -1 if error else 0
 
-//////////////////////////////////////////  tags collection manipulation  /////////////////////////////////////////////
-    // TODO: query that would fit 'getNonFileTags'
-    void tagInodeMapInsert(std::size_t tagId, const std::vector<num_t> &inodes);
-    void tagInodeMapUpdate(std::size_t tagId, const std::vector<num_t> &inodes);
-    std::vector<num_t> tagInodeMapGet(std::size_t tagId);
-    void tagInodeMapDelete(std::size_t tagId);
-    void tagInodeMapAddInode(std::size_t tagId, num_t val);
-    void tagInodeMapDeleteInodes(std::vector<num_t> inodes);
+//////////////////////////////////////////  tagToInodes collection manipulation  /////////////////////////////////////////////
+    strvec tagNamesByTagType(num_t type);
 
-    void inodeToTagUpdate(num_t key, std::vector<std::size_t> tagsIds);
-    std::vector<std::size_t> inodeToTagGet(num_t key);
-    void inodeToTagDelete(num_t key);
-    void inodeToTagAddTagId(num_t key, std::size_t tagid);
-    void inodeToTagDeleteTags(std::vector<num_t> tagIds);
+    int tagToInodeInsert(num_t tagId, const numvec &inodes);
+    int tagToInodeUpdate(num_t tagId, const numvec &inodes);
+    numvec tagToInodeGet(num_t tagId);
+    int tagToInodeDelete(num_t tagId);
+    int tagToInodeAddInode(num_t tagId, num_t inode);
+    int tagToInodeDeleteInodes(const numvec &inodes);
 
 
-    void inodetoFilenameUpdate(num_t key, std::string filename);
-    std::string inodetoFilenameGet(num_t key);
-    void inodetoFilenameDelete(num_t key);
+//////////////////////////////////////////  InodeToTag collection manipulation  /////////////////////////////////////////////
+    int inodeToTagInsert(num_t inode, const numvec &tagsIds);
+    int inodeToTagUpdate(num_t inode, const numvec &tagsIds);
+    numvec inodeToTagGet(num_t inode);
+    int inodeToTagDelete(num_t inode);
+    int inodeToTagAddTagId(num_t inode, num_t tagid);
+    int inodeToTagDeleteTags(const numvec &tagIds);
 
-    tagInodeMap_t tagInodeMap{};
-    inodeTagMap_t inodeTagMap{};
-    inodeFilenameMap_t inodeFilenameMap{};
-    tagNameTag_t tagNameTag{};
+//////////////////////////////////////////  InodeToTag collection manipulation  /////////////////////////////////////////////
+    int inodetoFilenameInsert(num_t inode, const std::string &filename);
+    int inodetoFilenameUpdate(num_t inode, const std::string &filename);
+    std::string inodetoFilenameGet(num_t inode);
+    int inodetoFilenameDelete(num_t inode);
+
+//    tagInodeMap_t tagInodeMap{};
+//    inodeTagMap_t inodeTagMap{};
+//    inodeFilenameMap_t inodeFilenameMap{};
+//    tagNameTag_t tagNameTag{};
 
     size_t new_inode_counter = 0;
     strvec getNonFileTags();
+    num_t get_maximum_inode();
 };
 
 extern TagFS tagFS;

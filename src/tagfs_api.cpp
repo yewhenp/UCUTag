@@ -194,7 +194,7 @@ static int xmp_readdir(const char *path, void *buf, fuse_fill_dir_t filler,
         auto filename = tagFS.inodetoFilenameGet(*d->entry);
         if (filename == "@"){
             fillTagStat(&st);
-            for(auto& nonFileTagName: tagFS.getNonFileTags()){
+            for(auto& nonFileTagName: tagFS.tagNamesByTagType(TAG_TYPE_REGULAR)){
 #ifdef DEBUG
                 std::cout << " >>> readdir: " << "non-file tagname: " << nonFileTagName << std::endl;
 #endif
@@ -871,6 +871,11 @@ void *xmp_init(struct fuse_conn_info *conn) {
         unlink(new_path.c_str());
     }
     close(fd);
+
+//    db.tmp3.find().sort({age:-1}).limit(1)
+//    auto res = //
+    tagFS.new_inode_counter = tagFS.get_maximum_inode();
+
     return nullptr;
 }
 
@@ -884,9 +889,9 @@ static struct fuse_operations xmp_oper = {
         .mkdir      = xmp_mkdir,
         .unlink     = xmp_unlink,
         .rmdir      = xmp_rmdir,
-        .symlink    = xmp_symlink,
-        .rename     = xmp_rename,
-        .link       = xmp_link,
+//        .symlink    = xmp_symlink,
+//        .rename     = xmp_rename,
+//        .link       = xmp_link,
         .chmod      = xmp_chmod,
         .chown      = xmp_chown,
         .truncate   = xmp_truncate,
@@ -928,29 +933,29 @@ static struct fuse_operations xmp_oper = {
 #endif
 };
 
-void init_from_dir(const std::string &root){
-    std::size_t inode_count = 0;
-    for(auto& p: fs::recursive_directory_iterator(root, std::filesystem::directory_options::skip_permission_denied)){
-        tag_t tag;
-        tag.name = *(--p.path().end());
-        if(!std::filesystem::is_directory(p)){
-            tag.type = TAG_NAME;
-        } else {
-            tag.type = FILE_NAME;
-            tagFS.inodeFilenameMap.insert({inode_count, tag.name});
-        }
-        tagFS.inodeTagMap[inode_count].insert(tag);
-        tagFS.tagInodeMap[tag].insert(inode_count);
-        tagFS.tagNameTag.insert({tag.name, tag});
-        inode_count++;
-    }
-
-    std::cout << inode_count << std::endl;
-    std::cout << tagFS.inodeTagMap.size() << std::endl;
-    std::cout << tagFS.tagInodeMap.size() << std::endl;
-    std::cout << tagFS.tagNameTag.size() << std::endl;
-    std::cout << tagFS.inodeFilenameMap.size() << std::endl;
-}
+//void init_from_dir(const std::string &root){
+//    std::size_t inode_count = 0;
+//    for(auto& p: fs::recursive_directory_iterator(root, std::filesystem::directory_options::skip_permission_denied)){
+//        tag_t tag;
+//        tag.name = *(--p.path().end());
+//        if(!std::filesystem::is_directory(p)){
+//            tag.type = TAG_NAME;
+//        } else {
+//            tag.type = FILE_NAME;
+//            tagFS.inodeFilenameMap.insert({inode_count, tag.name});
+//        }
+//        tagFS.inodeTagMap[inode_count].insert(tag);
+//        tagFS.tagInodeMap[tag].insert(inode_count);
+//        tagFS.tagNameTag.insert({tag.name, tag});
+//        inode_count++;
+//    }
+//
+//    std::cout << inode_count << std::endl;
+//    std::cout << tagFS.inodeTagMap.size() << std::endl;
+//    std::cout << tagFS.tagInodeMap.size() << std::endl;
+//    std::cout << tagFS.tagNameTag.size() << std::endl;
+//    std::cout << tagFS.inodeFilenameMap.size() << std::endl;
+//}
 
 int main(int argc, char *argv[]) {
     umask(0);

@@ -1,21 +1,5 @@
 #include "TagFS.h"
 
-
-
-strvec TagFS::getNonFileTags(){
-
-    strvec res{};
-    for(auto const& [tag, inode]: tagInodeMap) {
-        if(tag.type == TAG_TYPE_REGULAR) {
-            res.push_back(tag.name);
-        }
-    }
-    return res;
-
-}
-
-
-
 std::pair<tagvec, int> TagFS::parseTags(const char *path) {
     tagvec res{};
     auto splitted = split(path, "/");
@@ -82,7 +66,7 @@ inodeset TagFS::getInodesFromTags(tagvec &tags) {
     inodeset intersect;
     bool i = true;
     for (const auto &tag: tags) {
-        auto inodes = tagInodeMapGet(tagNameToTagid(tag.name));
+        auto inodes = tagToInodeGet(tagNameToTagid(tag.name));
         if (i) {
             intersect.insert(inodes.begin(), inodes.end());
             i = false;
@@ -145,7 +129,7 @@ int TagFS::createNewFileMetaData(tagvec &tags, num_t newInode) {
 
     for (auto &tag: tags) {
         auto tagId = tagNameToTagid(tag.name);
-        tagInodeMapAddInode(tagId, newInode);
+        tagToInodeAddInode(tagId, newInode);
         inodeToTagAddTagId(newInode, tagId);
     }
     return 0;
@@ -161,13 +145,13 @@ int TagFS::deleteFileMetaData(tagvec &tags, num_t fileInode) {
         return -1;
     }
     auto fileTagId = tagNameToTagid(tags.back().name);
-    tagInodeMapDeleteInodes({fileInode});
+    tagToInodeDeleteInodes({fileInode});
     inodeToTagDelete(fileInode);
     inodetoFilenameDelete(fileInode);
-    auto residualInodes = tagInodeMapGet(fileTagId);
+    auto residualInodes = tagToInodeGet(fileTagId);
     if (residualInodes.empty()) {
         inodeToTagDeleteTags({static_cast<long>(fileTagId)});
-        tagInodeMapDelete(fileTagId);
+        tagToInodeDelete(fileTagId);
         tagsDelete(fileTagId);
     }
 
@@ -188,7 +172,7 @@ int TagFS::deleteRegularTags(tagvec &tags) {
     for (auto &tag: tags) {
         auto tagId = tagNameToTagid(tag.name);
         tagIds.push_back(tagId);
-        tagInodeMapDelete(tagId);
+        tagToInodeDelete(tagId);
         tagsDelete(tagId);
     }
     inodeToTagDeleteTags(tagIds);
@@ -209,7 +193,7 @@ int TagFS::createRegularTags(strvec &tagNames) {
     }
 
     for (size_t i = 0; i < tagNames.size(); i++) {
-        tagInodeMapInsert(tagIds[i], {});
+        tagToInodeInsert(tagIds[i], {});
         tagsAdd({TAG_TYPE_REGULAR, tagNames[i]});
     }
     return 0;
@@ -227,54 +211,255 @@ TagFS::TagFS() {
     inodetoFilename = db["inodetoFilename"];
 }
 
+
+
+int TagFS::collectionDelete(mongocxx::collection &collection, num_t id) {
+    auto res = collection.delete_one(document{} << _ID << id << finalize);
+    if (!res)
+        return -1;
+    return 1;
+}
+
+
+
 ////////////////////////////////////////////  tags collection manipulation  /////////////////////////////////////////////
 
-std::size_t TagFS::tagNameToTagid(std::string tagname) {
-    return hasher(tagname);
+num_t TagFS::tagNameToTagid(const std::string &tagname) {
+    return (num_t)hasher(tagname);
 }
 
 int TagFS::tagsAdd(tag_t tag) {
     auto tagId = tagNameToTagid(tag.name);
     bsoncxx::document::value doc_value = document{} <<
-            _ID << std::to_string(tagId) << TAG_NAME << tag.name << TAG_TYPE << std::to_string(tag.type) << finalize;
+            _ID << tagId << TAG_NAME << tag.name << TAG_TYPE << tag.type << finalize;
     auto res = tags.insert_one(doc_value.view());
     if (!res)
         return -1;
     return 0;
 }
 
-int TagFS::tagsUpdate(std::size_t tagId, tag_t newTag) {
+int TagFS::tagsUpdate(num_t tagId, tag_t newTag) {
     auto res = tags.update_one(document{} << _ID << (ssize_t)tagId << finalize,
                     document{} << SET << open_document <<
-                    TAG_NAME << newTag.name << TAG_TYPE << std::to_string(newTag.type) <<
+                    TAG_NAME << newTag.name << TAG_TYPE << newTag.type <<
                     close_document << finalize);
     if (!res)
         return -1;
     return 0;
 }
 
-tag_t TagFS::tagsGet(std::size_t tagId) {
+tag_t TagFS::tagsGet(num_t tagId) {
     auto res = tags.find_one(
-            document{} << _ID << std::to_string(tagId) << finalize);
+            document{} << _ID << tagId << finalize);
     if(res) {
         bsoncxx::document::view view = res->view();
-        return { .type=static_cast<size_t>(view[TAG_TYPE].get_int64()),
+        return { .type=view[TAG_TYPE].get_int64(),
                  .name=view[TAG_NAME].get_utf8().value.to_string(), };
     }
     return {};
 }
 
-int TagFS::tagsDelete(std::size_t tagId) {
-    auto res = tags.delete_one(
-            document{} << _ID << std::to_string(tagId) << finalize
-            );
+int TagFS::tagsDelete(num_t tagId) {
+    return collectionDelete(tags, tagId);
+}
+
+
+strvec TagFS::tagNamesByTagType(num_t type) {
+    strvec result;
+    mongocxx::cursor cursor = tags.find(
+            document{} << TAG_TYPE << type << finalize);
+    for(const auto &doc : cursor) {
+        result.push_back(doc[TAG_NAME].get_utf8().value.to_string());
+    }
+    return result;
+}
+
+
+//////////////////////////////////////////  tags collection manipulation  /////////////////////////////////////////////
+
+int TagFS::tagToInodeInsert(num_t tagId, const numvec &inodes) {
+    auto doc_value = document{} << _ID << tagId << INODES << open_array;
+    for (const num_t inode: inodes) {
+        doc_value = doc_value << inode;
+    }
+    auto doc_finalized = doc_value << close_array << finalize;
+
+    auto res = tagToInode.insert_many( (doc_finalized).view());
     if (!res)
         return -1;
     return 0;
 }
 
-//////////////////////////////////////////  tags collection manipulation  /////////////////////////////////////////////
-
-void TagFS::tagInodeMapUpdate(std::size_t tagId, const std::vector<num_t> &inodes) {
-
+int TagFS::tagToInodeUpdate(num_t tagId, const numvec &inodes) {
+    auto doc_value = document{} << _ID << tagId << INODES << open_array;
+    for (const num_t inode: inodes) {
+        doc_value = doc_value << inode;
+    }
+    auto doc_finalized = doc_value << close_array << finalize;
+    auto res = tagToInode.update_one(document{} << _ID << tagId << finalize, doc_finalized.view());
+    if (!res)
+        return -1;
+    return 0;
 }
+
+numvec TagFS::tagToInodeGet(num_t tagId) {
+    auto res = tagToInode.find_one(
+            document{} << _ID << tagId << finalize);
+    if(res) {
+        auto view = res->view();
+        auto arr_value = view[INODES].get_array().value;
+
+        numvec result{};
+        for (const auto &it: arr_value) {
+            result.push_back(it.get_int64());
+        }
+        return result;
+//        return numvec{arr_value.begin(), arr_value.end()};
+    }
+    return {};
+}
+
+int TagFS::tagToInodeDelete(num_t tagId) {
+    return collectionDelete(tagToInode, tagId);
+}
+
+int TagFS::tagToInodeAddInode(num_t tagId, num_t inode) {
+    auto res = tagToInode.update_one(
+            document{} << _ID << tagId << finalize,
+            document{} << PUSH << open_document << INODES << inode << close_document << finalize);
+    if (!res)
+        return -1;
+    return 0;
+}
+
+int TagFS::tagToInodeDeleteInodes(const numvec &inodes) {
+    auto pull_query = document{} << PULL << open_document << INODES << open_document << IN << open_array;
+    for (const auto &inode: inodes) {
+        pull_query = pull_query << inode;
+    }
+    auto res = tagToInode.update_many(document{} << finalize,
+                                      pull_query << close_array << close_document << close_document << finalize);
+    if (!res)
+        return -1;
+    return 0;
+}
+
+
+//////////////////////////////////////////  InodeToTag collection manipulation  /////////////////////////////////////////////
+
+int TagFS::inodeToTagInsert(num_t inode, const numvec &tagsIds) {
+    auto doc_value = document{} << _ID << inode << TAGS << open_array;
+    for (const num_t tagid: tagsIds) {
+        doc_value = doc_value << tagid;
+    }
+    auto doc_finalized = doc_value << close_array << finalize;
+    auto res = inodeToTag.insert_many( doc_finalized.view());
+    if (!res)
+        return -1;
+    return 0;
+}
+
+int TagFS::inodeToTagUpdate(num_t inode, const numvec &tagsIds) {
+    auto doc_value = document{} << _ID << inode << TAGS << open_array;
+    for (const num_t tagid: tagsIds) {
+        doc_value = doc_value << tagid;
+    }
+    auto doc_finalized = doc_value << close_array << finalize;
+    auto res = inodeToTag.update_one(document{} << _ID << inode << finalize, doc_finalized.view());
+    if (!res)
+        return -1;
+    return 0;
+}
+
+numvec TagFS::inodeToTagGet(num_t inode) {
+    auto res = inodeToTag.find_one(
+            document{} << _ID << inode << finalize);
+    if(res) {
+        auto view = res->view();
+        auto arr_value = view[TAGS].get_array().value;
+
+        numvec result{};
+        for (const auto &it: arr_value) {
+            result.push_back(it.get_int64());
+        }
+        return result;
+    }
+    return {};
+}
+
+int TagFS::inodeToTagDelete(num_t inode) {
+    return collectionDelete(inodeToTag, inode);
+}
+
+int TagFS::inodeToTagAddTagId(num_t inode, num_t tagid) {
+    auto res = tagToInode.update_one(
+            document{} << _ID << inode << finalize,
+            document{} << PUSH << open_document << TAGS << tagid << close_document << finalize);
+    if (!res)
+        return -1;
+    return 0;
+}
+
+int TagFS::inodeToTagDeleteTags(const numvec &tagIds) {
+    auto pull_query = document{} << PULL << open_document << TAGS << open_document << IN << open_array;
+    for (const auto &tagid: tagIds) {
+        pull_query = pull_query << tagid;
+    }
+    auto res = tagToInode.update_many(document{} << finalize,
+                                      pull_query << close_array << close_document << close_document << finalize);
+    if (!res)
+        return -1;
+    return 0;
+}
+
+//////////////////////////////////////////  InodeToTag collection manipulation  /////////////////////////////////////////////
+
+int TagFS::inodetoFilenameInsert(num_t inode, const std::string &filename) {
+    auto res = inodetoFilename.insert_one(
+            document{} << _ID << inode << FILENAME << filename << finalize);
+    if (!res)
+        return -1;
+    return 0;}
+
+int TagFS::inodetoFilenameUpdate(num_t inode, const std::string &filename) {
+    auto res = inodetoFilename.update_one(
+            document{} << _ID << inode << finalize,
+            document{} << FILENAME << filename << finalize);
+    if (!res)
+        return -1;
+    return 0;
+}
+
+std::string TagFS::inodetoFilenameGet(num_t inode) {
+    auto res = inodetoFilename.find_one(
+            document{} << _ID << inode << finalize);
+    if (res) {
+        bsoncxx::document::view view = res->view();
+        return view[FILENAME].get_utf8().value.to_string();
+    }
+    return {};
+}
+
+int TagFS::inodetoFilenameDelete(num_t inode) {
+    return collectionDelete(inodetoFilename, inode);
+}
+
+
+///////////////////////////////////////////////////////////////////////
+
+num_t TagFS::get_maximum_inode() {
+    auto sort_order = document{} << "$_id" << -1 << finalize;
+    auto opts = mongocxx::options::find{};
+    opts.sort(sort_order.view());
+    opts.limit(1);
+
+    auto cursor = inodeToTag.find({}, opts);
+
+    for (const auto &doc: cursor) {
+        return doc[_ID].get_int64();
+    }
+
+    return 0;
+}
+
+
