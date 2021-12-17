@@ -30,12 +30,12 @@ class TagFS {
 public:
     TagFS();
     std::pair<tagvec, int> parseTags(const char *path);
-    inode getFileInode(tagvec &tags);
+    inum getFileInode(tagvec &tags);
     std::string getFileRealPath(tagvec &tags);
     inodeset getInodesFromTags(tagvec &tags);
-    inode getNewInode();
-    int createNewFileMetaData(tagvec &tags, inode newInode);
-    int deleteFileMetaData(tagvec &tags, inode fileInode);
+    inum getNewInode();
+    int createNewFileMetaData(tagvec &tags, inum newInode);
+    int deleteFileMetaData(tagvec &tags, inum fileInode);
     int deleteRegularTags(strvec &tagNames);
     int createRegularTags(strvec &tagNames);
 
@@ -55,20 +55,21 @@ public:
     void tagsUpdate(std::size_t tagId, tag_t newTag);
     tag_t tagsGet(std::size_t tagId);
     void tagsDelete(std::size_t tagId);
+    bool tagsExists(std::size_t tagId);
 
-    void tagInodeMapUpdate(std::size_t tagId, std::vector<inode> inodes);
-    std::vector<inode> tagInodeMapGet(std::size_t tagId);
+    void tagInodeMapUpdate(std::size_t tagId, std::vector<inum> inodes);
+    std::vector<inum> tagInodeMapGet(std::size_t tagId);
     void tagInodeMapDelete(std::size_t tagId);
-    void tagInodeMapAddInode(std::size_t tagId, inode val);
+    void tagInodeMapAddInode(std::size_t tagId, inum val);
 
-    void nodeToTagUpdate(inode key, std::vector<std::size_t> tagsIds);
-    std::vector<std::size_t> nodeToTagGet(inode key);
-    void nodeToTagDelete(inode key);
-    void nodeToTagAddTagId(inode key, std::size_t tagid);
+    void nodeToTagUpdate(inum key, std::vector<std::size_t> tagsIds);
+    std::vector<std::size_t> nodeToTagGet(inum key);
+    void nodeToTagDelete(inum key);
+    void nodeToTagAddTagId(inum key, std::size_t tagid);
 
-    void inodetoFilenameUpdate(inode key, std::string filename);
-    std::string inodetoFilenameGet(inode key);
-    void inodetoFilenameDelete(inode key);
+    void inodetoFilenameUpdate(inum key, std::string filename);
+    std::string inodetoFilenameGet(inum key);
+    void inodetoFilenameDelete(inum key);
 
     tagInodeMap_t tagInodeMap{};
     inodeTagMap_t inodeTagMap{};

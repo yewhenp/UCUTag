@@ -59,12 +59,12 @@ std::ostream& operator<<(std::ostream& os, const std::unordered_set<A>& s) {
 std::ostream& operator<<(std::ostream &os, const tag_t &tag);
 
 // for convenience
-typedef std::size_t inode;
+typedef std::size_t inum;
 typedef std::unordered_set<tag_t> tagset;
 typedef std::vector<tag_t> tagvec;
 typedef std::vector<std::string> strvec;
-typedef std::unordered_set<inode> inodeset;
-typedef std::vector<inode> inodevec;
+typedef std::unordered_set<inum> inodeset;
+typedef std::vector<inum> inodevec;
 
 // essential data structures for fs
 typedef std::unordered_map<std::size_t, tagset> inodeTagMap_t;

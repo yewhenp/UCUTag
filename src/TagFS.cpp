@@ -1,5 +1,9 @@
 #include "TagFS.h"
 
+std::size_t tagNameToTagid(const std::string &tagname) {
+    return std::hash<std::string>{}(tagname);
+}
+
 
 strvec TagFS::getNonFileTags(){
     strvec res{};
@@ -35,13 +39,13 @@ std::pair<tagvec, int> TagFS::parseTags(const char *path) {
 //#endif
 //        return {res, 0};
 //    }
-
     for (auto &tagName: splitted) {
-        if (tagNameTag.find(tagName) == tagNameTag.end()) {
+        auto tagId = tagNameToTagid(tagName);
+        if (tagsExists(tagId)) {
             errno = ENOENT;
             return {res, -1};
         }
-        res.push_back(tagNameTag[tagName]);
+        res.push_back(tagsGet(tagId));
     }
 
 //    std::transform(splitted.begin(), splitted.end(), std::back_inserter(res),
@@ -52,27 +56,27 @@ std::pair<tagvec, int> TagFS::parseTags(const char *path) {
     return {res, 0};
 }
 
-inode TagFS::getFileInode(tagvec& tags) {
+inum TagFS::getFileInode(tagvec& tags) {
     inodeset file_inode_set = getInodesFromTags(tags);
     if (file_inode_set.size() > 1) {
 #ifdef DEBUG
         std::cerr << "got multiple inodes in file tags: " << tags << std::endl;
 #endif
-        return static_cast<inode>(-1);
+        return static_cast<inum>(-1);
     }
     if (file_inode_set.empty()) {
 #ifdef DEBUG
         std::cout << "got empty inode set in file tags: " << tags << std::endl;
 #endif
-        return static_cast<inode>(-1);
+        return static_cast<inum>(-1);
     }
-    inode file_inode = *file_inode_set.begin();
+    inum file_inode = *file_inode_set.begin();
     return file_inode;
 }
 
 
 std::string TagFS::getFileRealPath(tagvec& tags) {
-    inode file_inode = getFileInode(tags);
+    inum file_inode = getFileInode(tags);
     return std::to_string(file_inode);
 }
 
@@ -97,11 +101,11 @@ inodeset TagFS::getInodesFromTags(tagvec &tags) {
     return intersect;
 }
 
-inode TagFS::getNewInode() {
+inum TagFS::getNewInode() {
     return new_inode_counter++;
 }
 
-int TagFS::createNewFileMetaData(tagvec &tags, inode newInode) {
+int TagFS::createNewFileMetaData(tagvec &tags, inum newInode) {
     tags[tags.size() - 1].type = TAG_TYPE_FILE;
     tagset tset(tags.begin(), tags.end());
 
@@ -121,7 +125,7 @@ int TagFS::createNewFileMetaData(tagvec &tags, inode newInode) {
     return 0;
 }
 
-int TagFS::deleteFileMetaData(tagvec &tags, inode fileInode) {
+int TagFS::deleteFileMetaData(tagvec &tags, inum fileInode) {
     if (tags[tags.size() - 1].type != TAG_TYPE_FILE) {
 #ifdef DEBUG
         std::cout << "last index was not file: " << tags << std::endl;

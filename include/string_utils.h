@@ -7,4 +7,5 @@
 
 strvec split(const std::string &str, const std::string &delim);
 void fillTagStat(struct stat *stbuf);
+
 #endif //UCUTAG_PROJECT_STRING_UTILS_H
