@@ -54,27 +54,27 @@ std::pair<tagvec, int> TagFS::parseTags(const char *path) {
     return {res, 0};
 }
 
-inum TagFS::getFileInode(tagvec& tags) {
+num_t TagFS::getFileInode(tagvec& tags) {
     inodeset file_inode_set = getInodesFromTags(tags);
     if (file_inode_set.size() > 1) {
 #ifdef DEBUG
         std::cerr << "got multiple inodes in file tags: " << tags << std::endl;
 #endif
-        return static_cast<inum>(-1);
+        return static_cast<num_t>(-1);
     }
     if (file_inode_set.empty()) {
 #ifdef DEBUG
         std::cout << "got empty inode set in file tags: " << tags << std::endl;
 #endif
-        return static_cast<inum>(-1);
+        return static_cast<num_t>(-1);
     }
-    inum file_inode = *file_inode_set.begin();
+    num_t file_inode = *file_inode_set.begin();
     return file_inode;
 }
 
 
 std::string TagFS::getFileRealPath(tagvec& tags) {
-    inum file_inode = getFileInode(tags);
+    num_t file_inode = getFileInode(tags);
     return std::to_string(file_inode);
 }
 
@@ -100,11 +100,11 @@ inodeset TagFS::getInodesFromTags(tagvec &tags) {
     return intersect;
 }
 
-inum TagFS::getNewInode() {
+num_t TagFS::getNewInode() {
     return new_inode_counter++;
 }
 
-int TagFS::createNewFileMetaData(tagvec &tags, inum newInode) {
+int TagFS::createNewFileMetaData(tagvec &tags, num_t newInode) {
     auto& fileTag = tags.back();
     fileTag.type = TAG_TYPE_FILE;
     tagsUpdate(tagNameToTagid(fileTag.name), fileTag);
@@ -126,17 +126,18 @@ int TagFS::createNewFileMetaData(tagvec &tags, inum newInode) {
     return 0;
 }
 
-int TagFS::deleteFileMetaData(tagvec &tags, inum fileInode) {
-    if (tags[tags.size() - 1].type != TAG_TYPE_FILE) {
+int TagFS::deleteFileMetaData(tagvec &tags, num_t fileInode) {
+    if (tags.back().type != TAG_TYPE_FILE) {
 #ifdef DEBUG
         std::cout << "last index was not file: " << tags << std::endl;
 #endif
         return -1;
     }
 
-    inodeFilenameMap.erase(fileInode);
+    inodetoFilenameDelete(fileInode);
 
-    for (auto &tag: inodeTagMap[fileInode]) {
+    for (auto &tag: nodeToTagGet(fileInode)) {
+        auto tagInodeMapGet();
         tagInodeMap[tag].erase(fileInode);
     }
     tagNameTag.erase(tags.back().name);
@@ -219,7 +220,7 @@ int TagFS::tagsAdd(tag_t tag) {
 }
 
 int TagFS::tagsUpdate(std::size_t tagId, tag_t newTag) {
-    auto res = tags.update_one(document{} << _ID << tagId << finalize,
+    auto res = tags.update_one(document{} << _ID << (ssize_t)tagId << finalize,
                     document{} << SET << open_document <<
                     TAG_NAME << newTag.name << TAG_TYPE << newTag.type <<
                     close_document << finalize);
@@ -250,6 +251,6 @@ int TagFS::tagsDelete(std::size_t tagId) {
 
 //////////////////////////////////////////  tags collection manipulation  /////////////////////////////////////////////
 
-void TagFS::tagInodeMapUpdate(std::size_t tagId, const std::vector<inum> &inodes) {
+void TagFS::tagInodeMapUpdate(std::size_t tagId, const std::vector<num_t> &inodes) {
 
 }

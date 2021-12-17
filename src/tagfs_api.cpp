@@ -267,7 +267,7 @@ static int xmp_mknod(const char *path, mode_t mode, dev_t rdev) {
         xmp_mkdir(path, mode);
     }
     else {
-        inum new_inode = tagFS.getNewInode();
+        num_t new_inode = tagFS.getNewInode();
         std::string new_path = std::to_string(new_inode);
 
         if (S_ISFIFO(mode)) {
@@ -300,7 +300,7 @@ static int xmp_unlink(const char *path) {
     auto [tag_vec, status] = tagFS.parseTags(path);
     if (status != 0) return -errno;
     std::string file_path = tagFS.getFileRealPath(tag_vec);
-    inum file_inode = tagFS.getFileInode(tag_vec);
+    num_t file_inode = tagFS.getFileInode(tag_vec);
 
     if (tagFS.deleteFileMetaData(tag_vec, file_inode) != 0) {
         errno = ENOENT;
@@ -351,7 +351,7 @@ static int xmp_symlink(const char *from, const char *to) {
     if (status_from != 0) return -errno;
     std::string link_file_path = tagFS.getFileRealPath(tag_vec_from);
 
-    inum new_inode = tagFS.getNewInode();
+    num_t new_inode = tagFS.getNewInode();
     std::string new_path = std::to_string(new_inode);
 
     res = symlink(link_file_path.c_str(), new_path.c_str());
@@ -395,7 +395,7 @@ static int xmp_rename(const char *from, const char *to) {
     tag_vec_to.back().type = tag_vec_from.back().type;
 
     if (tag_vec_from[tag_vec_from.size() - 1].type == TAG_TYPE_FILE) {
-        inum file_inode = tagFS.getFileInode(tag_vec_from);
+        num_t file_inode = tagFS.getFileInode(tag_vec_from);
 
         if (tagFS.deleteFileMetaData(tag_vec_from, file_inode) != 0) {
             errno = ENOENT;
@@ -448,7 +448,7 @@ static int xmp_link(const char *from, const char *to) {
     if (status1 != 0) return -errno;
     std::string link_file_path = tagFS.getFileRealPath(tag_vec_from);
 
-    inum new_inode = tagFS.getNewInode();
+    num_t new_inode = tagFS.getNewInode();
     std::string new_path = std::to_string(new_inode);
 
     res = link(link_file_path.c_str(), new_path.c_str());
@@ -563,7 +563,7 @@ static int xmp_create(const char *path, mode_t mode, struct fuse_file_info *fi) 
     }
 
 
-    inum new_inode = tagFS.getNewInode();
+    num_t new_inode = tagFS.getNewInode();
     std::string new_path = std::to_string(new_inode);
 
 #ifdef DEBUG
@@ -600,7 +600,7 @@ static int xmp_open(const char *path, struct fuse_file_info *fi) {
 
     int fd;
     std::string file_path;
-    inum new_inode;
+    num_t new_inode;
     inodeset file_inode_set;
     tagvec tag_vec;
     int status;
@@ -916,7 +916,7 @@ void *xmp_init(struct fuse_conn_info *conn) {
 #endif
     int fd;
     auto tag_vec = tagvec(1, {TAG_TYPE_REGULAR, "@"});
-    inum new_inode = tagFS.getNewInode();
+    num_t new_inode = tagFS.getNewInode();
     std::string new_path = std::to_string(new_inode);
     fd = open(new_path.c_str(), O_WRONLY | O_APPEND | O_CREAT, 0644);
     if (tagFS.createNewFileMetaData(tag_vec, new_inode) != 0) {

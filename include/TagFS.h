@@ -44,12 +44,12 @@ private:
 public:
     TagFS();
     std::pair<tagvec, int> parseTags(const char *path);
-    inum getFileInode(tagvec &tags);
+    num_t getFileInode(tagvec &tags);
     std::string getFileRealPath(tagvec &tags);
     inodeset getInodesFromTags(tagvec &tags);
-    inum getNewInode();
-    int createNewFileMetaData(tagvec &tags, inum newInode);
-    int deleteFileMetaData(tagvec &tags, inum fileInode);
+    num_t getNewInode();
+    int createNewFileMetaData(tagvec &tags, num_t newInode);
+    int deleteFileMetaData(tagvec &tags, num_t fileInode);
     int deleteRegularTags(strvec &tagNames);
     int createRegularTags(strvec &tagNames);
 
@@ -58,7 +58,7 @@ public:
     // tagid = hash(tagname)
 //    tags:               tagid -> {tagname, tagtype}       [ {tagid, tagname, tagtype}}
 //    tagInodeMap:        tagid -> [i1 i2 i3]
-//    nodeToTag:          ii -> [tagid1 tagid2 ..]
+//    inodeToTag:          ii -> [tagid1 tagid2 ..]
 //    inodetoFilename:    ii -> [filename ]
 
 //    inode_counter - in init max(inode)
@@ -76,20 +76,20 @@ public:
 
 //////////////////////////////////////////  tags collection manipulation  /////////////////////////////////////////////
     // TODO: query that would fit 'getNonFileTags'
-    void tagInodeMapInsert(std::size_t tagId, const std::vector<inum> &inodes);
-    void tagInodeMapUpdate(std::size_t tagId, const std::vector<inum> &inodes);
-    std::vector<inum> tagInodeMapGet(std::size_t tagId);
+    void tagInodeMapInsert(std::size_t tagId, const std::vector<num_t> &inodes);
+    void tagInodeMapUpdate(std::size_t tagId, const std::vector<num_t> &inodes);
+    std::vector<num_t> tagInodeMapGet(std::size_t tagId);
     void tagInodeMapDelete(std::size_t tagId);
-    void tagInodeMapAddInode(std::size_t tagId, inum val);
+    void tagInodeMapAddInode(std::size_t tagId, num_t val);
 
-    void nodeToTagUpdate(inum key, std::vector<std::size_t> tagsIds);
-    std::vector<std::size_t> nodeToTagGet(inum key);
-    void nodeToTagDelete(inum key);
-    void nodeToTagAddTagId(inum key, std::size_t tagid);
+    void nodeToTagUpdate(num_t key, std::vector<std::size_t> tagsIds);
+    std::vector<std::size_t> nodeToTagGet(num_t key);
+    void nodeToTagDelete(num_t key);
+    void nodeToTagAddTagId(num_t key, std::size_t tagid);
 
-    void inodetoFilenameUpdate(inum key, std::string filename);
-    std::string inodetoFilenameGet(inum key);
-    void inodetoFilenameDelete(inum key);
+    void inodetoFilenameUpdate(num_t key, std::string filename);
+    std::string inodetoFilenameGet(num_t key);
+    void inodetoFilenameDelete(num_t key);
 
     tagInodeMap_t tagInodeMap{};
     inodeTagMap_t inodeTagMap{};
