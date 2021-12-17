@@ -923,6 +923,11 @@ void *xmp_init(struct fuse_conn_info *conn) {
         unlink(new_path.c_str());
     }
     close(fd);
+
+//    db.tmp3.find().sort({age:-1}).limit(1)
+//    auto res = //
+    tagFS.new_inode_counter = tagFS.get_maximum_inode();
+
     return nullptr;
 }
 

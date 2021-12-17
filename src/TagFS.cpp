@@ -260,7 +260,7 @@ strvec TagFS::tagNamesByTagType(num_t type) {
     strvec result;
     mongocxx::cursor cursor = tags.find(
             document{} << TAG_TYPE << type << finalize);
-    for(auto doc : cursor) {
+    for(const auto &doc : cursor) {
         result.push_back(doc[TAG_NAME].get_utf8().value.to_string());
     }
     return result;
@@ -425,6 +425,24 @@ std::string TagFS::inodetoFilenameGet(num_t inode) {
 
 int TagFS::inodetoFilenameDelete(num_t inode) {
     return collectionDelete(inodetoFilename, inode);
+}
+
+
+///////////////////////////////////////////////////////////////////////
+
+num_t TagFS::get_maximum_inode() {
+    auto sort_order = document{} << "$_id" << -1 << finalize;
+    auto opts = mongocxx::options::find{};
+    opts.sort(sort_order.view());
+    opts.limit(1);
+
+    auto cursor = inodeToTag.find({}, opts);
+
+    for (const auto &doc: cursor) {
+        return doc[_ID].get_int64();
+    }
+
+    return 0;
 }
 
 

@@ -39,6 +39,7 @@ private:
     const std::string IN       = "$in";
     const std::string TAGS     = "tags";
     const std::string FILENAME = "filename";
+    const std::string GROUP    = "group";
 
     mongocxx::database db;
     mongocxx::collection tags;
@@ -116,6 +117,7 @@ public:
 
     size_t new_inode_counter = 0;
     strvec getNonFileTags();
+    num_t get_maximum_inode();
 };
 
 extern TagFS tagFS;
