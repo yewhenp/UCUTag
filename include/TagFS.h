@@ -41,6 +41,10 @@ private:
     const std::string FILENAME = "filename";
     const std::string GROUP    = "group";
 
+    mongocxx::instance instance{}; // This should be done only once.
+    mongocxx::uri uri{"mongodb://localhost:27017"};
+    mongocxx::client client;
+
     mongocxx::database db;
     mongocxx::collection tags;
     mongocxx::collection tagToInode;
@@ -88,7 +92,7 @@ public:
 //////////////////////////////////////////  tagToInodes collection manipulation  /////////////////////////////////////////////
     strvec tagNamesByTagType(num_t type);
 
-    int tagToInodeInsert(num_t tagId, const numvec &inodes);
+    int tagToInodeInsert(num_t tagId, num_t inodes);
     int tagToInodeUpdate(num_t tagId, const numvec &inodes);
     numvec tagToInodeGet(num_t tagId);
     int tagToInodeDelete(num_t tagId);
@@ -97,7 +101,7 @@ public:
 
 
 //////////////////////////////////////////  InodeToTag collection manipulation  /////////////////////////////////////////////
-    int inodeToTagInsert(num_t inode, const numvec &tagsIds);
+    int inodeToTagInsert(num_t inode, num_t tagsIds);
     int inodeToTagUpdate(num_t inode, const numvec &tagsIds);
     numvec inodeToTagGet(num_t inode);
     int inodeToTagDelete(num_t inode);
@@ -115,8 +119,7 @@ public:
 //    inodeFilenameMap_t inodeFilenameMap{};
 //    tagNameTag_t tagNameTag{};
 
-    size_t new_inode_counter = 0;
-    strvec getNonFileTags();
+    num_t new_inode_counter = 0;
     num_t get_maximum_inode();
 };
 

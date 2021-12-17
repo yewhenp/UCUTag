@@ -113,6 +113,7 @@ static int xmp_access(const char *path, int mask) {
         return 0;
     }
     std::string file_path = tagFS.getFileRealPath(tag_vec);
+//    std::cout << "FILE PATH: " << file_path << std::endl;
     res = access(file_path.c_str(), mask);
     if (res == -1)
         return -errno;
@@ -244,9 +245,11 @@ static int xmp_mknod(const char *path, mode_t mode, dev_t rdev) {
 
     int res;
     // We expect that all tags exist or last one might not exist
-    auto[tag_vec, status] = tagFS.prepareFileCreation(path);
-    if (status != 0)
+    auto[tag_vecgetattr, status] = tagFS.prepareFileCreation(path);
+    if (status != 0) {
         return status;
+
+    }
     // TODO: not sure if it's needed: called for creation of all non-directory, non-symlink nodes.
     if (S_ISDIR(mode)) {
         xmp_mkdir(path, mode);
@@ -264,7 +267,9 @@ static int xmp_mknod(const char *path, mode_t mode, dev_t rdev) {
         if (res == -1) {
             return -errno;
         }
+        auto splitted = split(path, "/");
 
+        tag_vec.push_back({TAG_TYPE_FILE, splitted.back()});
         if (tagFS.createNewFileMetaData(tag_vec, new_inode) != 0) {
             unlink(new_path.c_str());
             errno = EEXIST;
@@ -862,6 +867,7 @@ void *xmp_init(struct fuse_conn_info *conn) {
     FUSE_ENABLE_SETVOLNAME(conn);
     FUSE_ENABLE_XTIMES(conn);
 #endif
+    tagFS.new_inode_counter = tagFS.get_maximum_inode();
     int fd;
     auto tag_vec = tagvec(1, {TAG_TYPE_REGULAR, "@"});
     num_t new_inode = tagFS.getNewInode();
@@ -872,9 +878,6 @@ void *xmp_init(struct fuse_conn_info *conn) {
     }
     close(fd);
 
-//    db.tmp3.find().sort({age:-1}).limit(1)
-//    auto res = //
-    tagFS.new_inode_counter = tagFS.get_maximum_inode();
 
     return nullptr;
 }
