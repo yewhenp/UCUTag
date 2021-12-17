@@ -64,7 +64,7 @@ typedef std::unordered_set<tag_t> tagset;
 typedef std::vector<tag_t> tagvec;
 typedef std::vector<std::string> strvec;
 typedef std::unordered_set<num_t> inodeset;
-typedef std::vector<num_t> inodevec;
+typedef std::vector<num_t> numvec;
 
 // essential data structures for fs
 typedef std::unordered_map<std::size_t, tagset> inodeTagMap_t;
