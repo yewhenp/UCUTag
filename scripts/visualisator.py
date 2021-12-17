@@ -6,7 +6,7 @@ import plotly.graph_objects as go
 
 def animator(tree_heights, tree_file_widths, ext_data, tag_data, data_key):
     fig = go.Figure(data=[
-        go.Surface(z=2*np.asarray(ext_data[data_key]).reshape((len(tree_heights), len(tree_file_widths))),
+        go.Surface(z=np.asarray(ext_data[data_key]).reshape((len(tree_heights), len(tree_file_widths))),
                    x=tree_heights, y=tree_file_widths),
         go.Surface(z=np.asarray(tag_data[data_key]).reshape((len(tree_heights), len(tree_file_widths))),
                    x=tree_heights, y=tree_file_widths)
