@@ -282,9 +282,9 @@ int TagFS::tagToInodeInsert(num_t tagId, const numvec &inodes) {
     for (const num_t inode: inodes) {
         doc_value = doc_value << inode;
     }
-    auto doc_finalized = doc_value << close_array << finalize;
+    bsoncxx::document::value doc_finalized = doc_value << close_array << finalize;
 
-    auto res = tagToInode.insert_many( (doc_finalized).view());
+    auto res = tagToInode.insert_one( doc_finalized.view());
     if (!res)
         return -1;
     return 0;
@@ -353,7 +353,7 @@ int TagFS::inodeToTagInsert(num_t inode, const numvec &tagsIds) {
         doc_value = doc_value << tagid;
     }
     auto doc_finalized = doc_value << close_array << finalize;
-    auto res = inodeToTag.insert_many( doc_finalized.view());
+    auto res = inodeToTag.insert_one( doc_finalized.view());
     if (!res)
         return -1;
     return 0;
