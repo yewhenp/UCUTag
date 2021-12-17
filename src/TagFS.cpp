@@ -1,11 +1,9 @@
 #include "TagFS.h"
 
-std::size_t tagNameToTagid(const std::string &tagname) {
-    return std::hash<std::string>{}(tagname);
-}
 
 
 strvec TagFS::getNonFileTags(){
+
     strvec res{};
     for(auto const& [tag, inode]: tagInodeMap) {
         if(tag.type == TAG_TYPE_REGULAR) {
@@ -40,12 +38,12 @@ std::pair<tagvec, int> TagFS::parseTags(const char *path) {
 //        return {res, 0};
 //    }
     for (auto &tagName: splitted) {
-        auto tagId = tagNameToTagid(tagName);
-        if (tagsExists(tagId)) {
+        auto tag = tagsGet(tagNameToTagid(tagName));
+        if (!(tag == tag_t{})) {
             errno = ENOENT;
             return {res, -1};
         }
-        res.push_back(tagsGet(tagId));
+        res.push_back(tag);
     }
 
 //    std::transform(splitted.begin(), splitted.end(), std::back_inserter(res),
@@ -84,18 +82,19 @@ inodeset TagFS::getInodesFromTags(tagvec &tags) {
     inodeset intersect;
     bool i = true;
     for (const auto &tag: tags) {
-        auto inodes = tagInodeMap[tag];
+        auto inodes = tagInodeMapGet(tagNameToTagid(tag.name));
         if (i) {
             intersect.insert(inodes.begin(), inodes.end());
             i = false;
         } else {
             inodeset c;
+            inodeset inodesset{inodes.begin(),  inodes.end()};
             for (auto& inode : intersect) {
-                if (inodes.count(inode) > 0) {
+                if (inodesset.count(inode) > 0) {
                     c.insert(inode);
                 }
             }
-            intersect = c;
+            intersect = std::move(c);
         }
     }
     return intersect;
@@ -106,21 +105,23 @@ inum TagFS::getNewInode() {
 }
 
 int TagFS::createNewFileMetaData(tagvec &tags, inum newInode) {
-    tags[tags.size() - 1].type = TAG_TYPE_FILE;
-    tagset tset(tags.begin(), tags.end());
+    auto& fileTag = tags.back();
+    fileTag.type = TAG_TYPE_FILE;
+    tagsUpdate(tagNameToTagid(fileTag.name), fileTag);
 
-    if (tagInodeMap.find(tags[tags.size() - 1]) != tagInodeMap.end()) {
-#ifdef DEBUG
-        std::cout << "file exist: " << tags << std::endl;
-#endif
-        return -1;
-    }
+    inodetoFilenameUpdate(newInode, std::to_string(newInode));
+    // TODO: remove legacy (we need to allow multiples files with the same filename)
+//    if (tagInodeMap.find(tags[tags.size() - 1]) != tagInodeMap.end()) {
+//#ifdef DEBUG
+//        std::cout << "file exist: " << tags << std::endl;
+//#endif
+//        return -1;
+//    }
 
-    inodeFilenameMap[newInode] = tags[tags.size() - 1].name;
-    inodeTagMap[newInode] = tset;
     for (auto &tag: tags) {
-        tagInodeMap[tag].insert(newInode);
-        tagNameTag[tag.name] = tag;
+        auto tagId = tagNameToTagid(tag.name);
+        tagInodeMapAddInode(tagId, newInode);
+        nodeToTagAddTagId(newInode, tagId);
     }
     return 0;
 }
@@ -170,16 +171,21 @@ int TagFS::deleteRegularTags(strvec &tagNames) {
 }
 
 int TagFS::createRegularTags(strvec &tagNames) {
+    std::vector<size_t> tagIds;
+    tagIds.reserve(tagNames.size());
     for (auto &tagName: tagNames) {
-        if (tagNameTag.find(tagName) != tagNameTag.end()) {
+        auto tagId = tagNameToTagid(tagName);
+        auto tag = tagsGet(tagId);
+        if (!(tag == tag_t{})) {
             errno = EEXIST;
             return -1;
         }
+        tagIds.emplace_back(tagId);
     }
-    for (auto &tagName: tagNames) {
-        tag_t tag{TAG_TYPE_REGULAR, tagName};
-        tagInodeMap[tag] = {};
-        tagNameTag[tag.name] = tag;
+
+    for (size_t i = 0; i < tagNames.size(); i++) {
+        tagInodeMapInsert(tagIds[i], {});
+        tagsAdd({TAG_TYPE_REGULAR, tagNames[i]});
     }
     return 0;
 }

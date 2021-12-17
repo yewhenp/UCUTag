@@ -75,7 +75,7 @@ public:
     int tagsDelete(std::size_t tagId);                                          // -1 if error else 0
 
 //////////////////////////////////////////  tags collection manipulation  /////////////////////////////////////////////
-
+    // TODO: query that would fit 'getNonFileTags'
     void tagInodeMapInsert(std::size_t tagId, const std::vector<inum> &inodes);
     void tagInodeMapUpdate(std::size_t tagId, const std::vector<inum> &inodes);
     std::vector<inum> tagInodeMapGet(std::size_t tagId);

@@ -191,17 +191,23 @@ static int xmp_readdir(const char *path, void *buf, fuse_fill_dir_t filler,
 
     while (d->entry != d->inodes.end()) {
         struct stat st{};
-        if (tagFS.inodeFilenameMap[*d->entry] == "@"){
+        auto filename = tagFS.inodetoFilenameGet(*d->entry);
+        if (filename == "@"){
+            fillTagStat(&st);
             for(auto& nonFileTagName: tagFS.getNonFileTags()){
-                std::cout << nonFileTagName << ": " << tagFS.tagNameTag[nonFileTagName] << std::endl;
-                if (tagFS.tagNameTag[nonFileTagName].type == TAG_TYPE_REGULAR) {
-                    fillTagStat(&st);
-                    filler(buf, nonFileTagName.c_str(), &st, 0);
-                }
+#ifdef DEBUG
+                std::cout << " >>> readdir: " << "non-file tagname: " << nonFileTagName << std::endl;
+#endif
+                // TODO: find bug: 'getNonFileTags' doesn't filter
+//                if (tagFS.tagNameTag[nonFileTagName].type == TAG_TYPE_REGULAR) {
+//                    fillTagStat(&st);
+//                    filler(buf, nonFileTagName.c_str(), &st, 0);
+//                }
+                filler(buf, nonFileTagName.c_str(), &st, 0);
             }
         } else {
             if (lstat(std::to_string(*d->entry).c_str(), &st) == -1) status = -1;
-            filler(buf, tagFS.inodeFilenameMap[*d->entry].c_str(), &st, 0);
+            filler(buf, filename.c_str(), &st, 0);
         }
 
 
@@ -235,32 +241,28 @@ static int xmp_mknod(const char *path, mode_t mode, dev_t rdev) {
 #endif
 
     int res;
+    // We expect that all tags exist or last one might not exist
+    auto[tag_vec, status] = tagFS.parseTags(path);
 
-    auto tag_vec = tagvec();
-    bool last_exist = false;
-    for(auto& tagName: split(path, "/")){
-        if (tagFS.tagNameTag.find(tagName) != tagFS.tagNameTag.end()) {
-            tag_vec.push_back(tagFS.tagNameTag[tagName]);
-            last_exist = true;
-        } else {
-            last_exist = false;
-            tag_vec.push_back({TAG_TYPE_REGULAR, tagName});
+    // We failed to parse inner component of the path
+    auto tagNames = split(path, "/");
+    if (!(status == 0 || tag_vec.size() == tagNames.size() - 1)) {
+        errno = ENOENT;
+        return -errno;
+    }
+    // Check if combination of existing tags is unique
+    if (status == 0) {
+        inodeset file_inode_set = tagFS.getInodesFromTags(tag_vec);
+
+        if (!file_inode_set.empty()) {
+            errno = EEXIST;
+#ifdef DEBUG
+            std::cerr << "path already exist: " << path << std::endl;
+#endif
+            return -errno;
         }
     }
-    if (last_exist) {
-        errno = EEXIST;
-        return -errno;
-    }
-    inodeset file_inode_set = tagFS.getInodesFromTags(tag_vec);
-
-    if (!file_inode_set.empty()) {
-        errno = EEXIST;
-#ifdef DEBUG
-        std::cerr << "path already exist: " << path << std::endl;
-#endif
-        return -errno;
-    }
-
+    // TODO: not sure if it's needed: called for creation of all non-directory, non-symlink nodes.
     if (S_ISDIR(mode)) {
         xmp_mkdir(path, mode);
     }
