@@ -189,8 +189,61 @@ TagFS::TagFS() {
     mongocxx::uri uri("mongodb://localhost:27017");
     mongocxx::client client(uri);
 
-    mongocxx::database db = client["ucutag"];
-
-
+    db = client["ucutag"];
+    tags = db["tags"];
+    tagToInode = db["tagToInode"];
+    inodeToTag = db["inodeToTag"];
+    inodetoFilename = db["inodetoFilename"];
 }
 
+////////////////////////////////////////////  tags collection manipulation  /////////////////////////////////////////////
+
+std::size_t TagFS::tagNameToTagid(std::string tagname) {
+    return hasher(tagname);
+}
+
+int TagFS::tagsAdd(tag_t tag) {
+    auto tagId = tagNameToTagid(tag.name);
+    bsoncxx::document::value doc_value = document{} <<
+            _ID << tagId << TAG_NAME << tag.name << TAG_TYPE << tag.type << finalize;
+    auto res = tags.insert_one(doc_value.view());
+    if (!res)
+        return -1;
+    return 0;
+}
+
+int TagFS::tagsUpdate(std::size_t tagId, tag_t newTag) {
+    auto res = tags.update_one(document{} << _ID << tagId << finalize,
+                    document{} << SET << open_document <<
+                    TAG_NAME << newTag.name << TAG_TYPE << newTag.type <<
+                    close_document << finalize);
+    if (!res)
+        return -1;
+    return 0;
+}
+
+tag_t TagFS::tagsGet(std::size_t tagId) {
+    auto res = tags.find_one(
+            document{} << _ID << tagId << finalize);
+    if(res) {
+        bsoncxx::document::view view = res->view();
+        return { .type=static_cast<size_t>(view[TAG_TYPE].get_int64()),
+                 .name=view[TAG_NAME].get_utf8().value.to_string(), };
+    }
+    return {};
+}
+
+int TagFS::tagsDelete(std::size_t tagId) {
+    auto res = tags.delete_one(
+            document{} << _ID << tagId << finalize
+            );
+    if (!res)
+        return -1;
+    return 0;
+}
+
+//////////////////////////////////////////  tags collection manipulation  /////////////////////////////////////////////
+
+void TagFS::tagInodeMapUpdate(std::size_t tagId, std::vector<inode> inodes) {
+
+}
