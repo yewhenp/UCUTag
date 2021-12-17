@@ -205,7 +205,7 @@ std::size_t TagFS::tagNameToTagid(std::string tagname) {
 int TagFS::tagsAdd(tag_t tag) {
     auto tagId = tagNameToTagid(tag.name);
     bsoncxx::document::value doc_value = document{} <<
-            _ID << tagId << TAG_NAME << tag.name << TAG_TYPE << tag.type << finalize;
+            _ID << std::to_string(tagId) << TAG_NAME << tag.name << TAG_TYPE << std::to_string(tag.type) << finalize;
     auto res = tags.insert_one(doc_value.view());
     if (!res)
         return -1;
@@ -213,9 +213,9 @@ int TagFS::tagsAdd(tag_t tag) {
 }
 
 int TagFS::tagsUpdate(std::size_t tagId, tag_t newTag) {
-    auto res = tags.update_one(document{} << _ID << tagId << finalize,
+    auto res = tags.update_one(document{} << _ID << std::to_string(tagId) << finalize,
                     document{} << SET << open_document <<
-                    TAG_NAME << newTag.name << TAG_TYPE << newTag.type <<
+                    TAG_NAME << newTag.name << TAG_TYPE << std::to_string(newTag.type) <<
                     close_document << finalize);
     if (!res)
         return -1;
@@ -224,7 +224,7 @@ int TagFS::tagsUpdate(std::size_t tagId, tag_t newTag) {
 
 tag_t TagFS::tagsGet(std::size_t tagId) {
     auto res = tags.find_one(
-            document{} << _ID << tagId << finalize);
+            document{} << _ID << std::to_string(tagId) << finalize);
     if(res) {
         bsoncxx::document::view view = res->view();
         return { .type=static_cast<size_t>(view[TAG_TYPE].get_int64()),
@@ -235,7 +235,7 @@ tag_t TagFS::tagsGet(std::size_t tagId) {
 
 int TagFS::tagsDelete(std::size_t tagId) {
     auto res = tags.delete_one(
-            document{} << _ID << tagId << finalize
+            document{} << _ID << std::to_string(tagId) << finalize
             );
     if (!res)
         return -1;
@@ -244,6 +244,6 @@ int TagFS::tagsDelete(std::size_t tagId) {
 
 //////////////////////////////////////////  tags collection manipulation  /////////////////////////////////////////////
 
-void TagFS::tagInodeMapUpdate(std::size_t tagId, std::vector<inode> inodes) {
+void TagFS::tagInodeMapUpdate(std::size_t tagId, const std::vector<inum> &inodes) {
 
 }

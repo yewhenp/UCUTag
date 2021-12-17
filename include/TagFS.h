@@ -76,8 +76,8 @@ public:
 
 //////////////////////////////////////////  tags collection manipulation  /////////////////////////////////////////////
 
-    void tagInodeMapInsert(std::size_t tagId, std::vector<inum> inodes);
-    void tagInodeMapUpdate(std::size_t tagId, std::vector<inum> inodes);
+    void tagInodeMapInsert(std::size_t tagId, const std::vector<inum> &inodes);
+    void tagInodeMapUpdate(std::size_t tagId, const std::vector<inum> &inodes);
     std::vector<inum> tagInodeMapGet(std::size_t tagId);
     void tagInodeMapDelete(std::size_t tagId);
     void tagInodeMapAddInode(std::size_t tagId, inum val);
