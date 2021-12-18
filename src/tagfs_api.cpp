@@ -92,9 +92,9 @@ static int xmp_getattr(const char *path, struct stat *stbuf) {
     }
 
     std::string file_path = tagFS.getFileRealPath(tag_vec);
-    std::cout << "lstating " << file_path << std::endl;
+//    std::cout << "lstating " << file_path << std::endl;
     res = lstat(file_path.c_str(), stbuf);
-    std::cout << "lstating done" << std::endl;
+//    std::cout << "lstating done" << std::endl;
     if (res == -1) {
 #ifdef DEBUG
         std::cout << " >>> lstat error " << std::endl;
