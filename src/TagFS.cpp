@@ -521,3 +521,28 @@ num_t TagFS::get_maximum_inode() {
     return 0;
 }
 
+int TagFS::renameFileTag(num_t inode, const std::string &oldTagName, const std::string &newTagName) {
+    // TODO: Support multiple file having the same filetag
+    auto oldTagId = tagNameToTagid(oldTagName);
+    auto newTagId = tagNameToTagid(newTagName);
+    auto oldTags = inodeToTagGet(inode);
+
+    oldTags.erase(std::remove(oldTags.begin(), oldTags.end(), oldTagId), oldTags.end());
+    oldTags.push_back(tagNameToTagid(newTagName));
+    inodeToTagUpdate(inode, oldTags);
+//    for(auto& tag: oldTags) {
+//
+//    }
+    inodetoFilenameUpdate(inode, newTagName);
+
+    auto oldInodes = tagToInodeGet(oldTagId);
+    tagToInodeDelete(oldTagId);
+    for(auto& oldInode: oldInodes){
+        tagToInodeAddInode(newTagId, oldInode);
+    }
+
+    tagsDelete(oldTagId);
+    tagsAdd({TAG_TYPE_FILE, newTagName});
+    return 0;
+}
+

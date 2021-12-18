@@ -66,6 +66,7 @@ public:
     int deleteFileMetaData(tagvec &tags, num_t fileInode);
     int deleteRegularTags(tagvec &tags);
     int createRegularTags(strvec &tagNames);
+    int renameFileTag(num_t inode, const std::string &oldTagName, const std::string &newTagName);
     std::pair<tagvec, int> prepareFileCreation(const char *path);
 
 public:
