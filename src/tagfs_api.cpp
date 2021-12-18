@@ -895,6 +895,10 @@ void *xmp_init(struct fuse_conn_info *conn) {
     return nullptr;
 }
 
+int xmp_utimens(const char *, const struct timespec tv[2]) {
+    return 0;
+}
+
 void
 xmp_destroy(void *userdata) {}
 
@@ -924,6 +928,7 @@ static struct fuse_operations xmp_oper = {
         .init       = xmp_init,
         .destroy	= xmp_destroy,
         .access     = xmp_access,
+        .utimens    = xmp_utimens,
 
 #ifdef HAVE_UTIMENSAT
         .utimens	= xmp_utimens,

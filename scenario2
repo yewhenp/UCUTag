@@ -1,0 +1,17 @@
+touch BMW Audi Mercedes
+mktag car_makers
+touch Yamaha Honda Kawasaki
+mktag moto_makers
+mv BMW car_makers/ && mv Audi car_makers/ && mv Mercedes car_makers/
+mv Yamaha moto_makers/ && mv Kawasaki moto_makers/
+mv Honda car_makers/moto_makers/
+
+cls @
+cls $(ls @)
+
+cp ../../README.md .
+mktag project
+cp ../../CMakeLists.txt ./project/CMakeLists.txt && mv README.md project/
+
+rm BMW
+rm Kawasaki
