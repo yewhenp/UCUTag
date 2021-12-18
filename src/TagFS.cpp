@@ -376,12 +376,33 @@ int TagFS::tagToInodeAddInode(num_t tagId, num_t inode) {
 }
 
 int TagFS::tagToInodeDeleteInodes(const numvec &inodes) {
-    auto pull_query = document{} << PULL << open_document << INODES << open_document << IN << open_array;
-    for (const auto &inode: inodes) {
-        pull_query = pull_query << inode;
-    }
-    auto res = tagToInode.update_many(document{} << finalize,
-                                      pull_query << close_array << close_document << close_document << finalize);
+    // auto pull_query = document{} << PULL << open_document << INODES << open_document << IN << open_array;
+    // for (const auto &inode: inodes) {
+    //     pull_query << inode;
+    // }
+    // // pull_query << close_array;
+    // auto pull_query_finalized = pull_query << close_array << close_document << close_document << finalize;
+
+
+    auto doc = bsoncxx::builder::basic::document{};
+    doc.append(kvp(IN, [&inodes](sub_array child) {
+        for (const auto& inode : inodes) {
+            child.append(inode);
+        }
+    }));
+    auto pull_query_finalized = document{} << PULL << open_document << INODES << doc << close_document << finalize;
+
+
+    // document Doc;
+    // Doc << IN << open_array;
+    // for (auto inode: inodes) {
+    //     Doc << inode;
+    // }
+    // Doc << close_array << finalize;
+
+    // auto pull_query_finalized = document{} << PULL << open_document << INODES << Doc << close_document << finalize;
+
+    auto res = tagToInode.update_many({}, pull_query_finalized.view());
     if (!res)
         return -1;
     return 0;
@@ -450,12 +471,14 @@ int TagFS::inodeToTagAddTagId(num_t inode, num_t tagid) {
 }
 
 int TagFS::inodeToTagDeleteTags(const numvec &tagIds) {
-    auto pull_query = document{} << PULL << open_document << TAGS << open_document << IN << open_array;
-    for (const auto &tagid: tagIds) {
-        pull_query = pull_query << tagid;
-    }
-    auto res = inodeToTag.update_many(document{} << finalize,
-                                      pull_query << close_array << close_document << close_document << finalize);
+    auto doc = bsoncxx::builder::basic::document{};
+    doc.append(kvp(IN, [&tagIds](sub_array child) {
+        for (const auto& tagid : tagIds) {
+            child.append(tagid);
+        }
+    }));
+    auto pull_query_finalized = document{} << PULL << open_document << INODES << doc << close_document << finalize;
+    auto res = inodeToTag.update_many({}, pull_query_finalized.view());
     if (!res)
         return -1;
     return 0;
