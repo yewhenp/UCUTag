@@ -159,10 +159,25 @@ int TagFS::deleteFileMetaData(tagvec &tags, num_t fileInode) {
 #endif
         return -1;
     }
+#ifdef DEBUG
+    std::cout << "deleteFileMetaData started" << std::endl;
+#endif
     auto fileTagId = tagNameToTagid(tags.back().name);
+#ifdef DEBUG
+    std::cout << "tagNameToTagid done" << std::endl;
+#endif
     tagToInodeDeleteInodes({fileInode});
+#ifdef DEBUG
+    std::cout << "tagToInodeDeleteInodes done" << std::endl;
+#endif
     inodeToTagDelete(fileInode);
+#ifdef DEBUG
+    std::cout << "inodeToTagDelete done" << std::endl;
+#endif
     inodetoFilenameDelete(fileInode);
+#ifdef DEBUG
+    std::cout << "inodetoFilenameDelete done" << std::endl;
+#endif
     auto residualInodes = tagToInodeGet(fileTagId);
     if (residualInodes.empty()) {
         inodeToTagDeleteTags({static_cast<long>(fileTagId)});
@@ -382,6 +397,7 @@ int TagFS::tagToInodeDeleteInodes(const numvec &inodes) {
     }
     auto res = tagToInode.update_many(document{} << finalize,
                                       pull_query << close_array << close_document << close_document << finalize);
+//    auto pull_query = document{} << PULL  << open_document << INODES << open_document << IN << "$each" << inodes.data();
     if (!res)
         return -1;
     return 0;
@@ -441,9 +457,7 @@ int TagFS::inodeToTagDelete(num_t inode) {
 }
 
 int TagFS::inodeToTagAddTagId(num_t inode, num_t tagid) {
-    std::cout << "pushing: " << tagid << " to " << inode << std::endl;
-    std::cout << inodeToTagGet(inode) << std::endl;
-    auto res = tagToInode.update_one(
+    auto res = inodeToTag.update_one(
             document{} << _ID << inode << finalize,
             document{} << PUSH << open_document << TAGS << tagid << close_document << finalize);
     if (!res)
@@ -454,9 +468,10 @@ int TagFS::inodeToTagAddTagId(num_t inode, num_t tagid) {
 int TagFS::inodeToTagDeleteTags(const numvec &tagIds) {
     auto pull_query = document{} << PULL << open_document << TAGS << open_document << IN << open_array;
     for (const auto &tagid: tagIds) {
+        std::cout << tagid << " deleting" << std::endl;
         pull_query = pull_query << tagid;
     }
-    auto res = tagToInode.update_many(document{} << finalize,
+    auto res = inodeToTag.update_many(document{} << finalize,
                                       pull_query << close_array << close_document << close_document << finalize);
     if (!res)
         return -1;
