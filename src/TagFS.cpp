@@ -67,7 +67,7 @@ inodeset TagFS::getInodesFromTags(tagvec &tags) {
     bool i = true;
     for (const auto &tag: tags) {
         auto inodes = tagToInodeGet(tagNameToTagid(tag.name));
-        std::cout << "for tag " << tag.name << " found inodes " << inodes << std::endl;
+//        std::cout << "for tag " << tag.name << " found inodes " << inodes << std::endl;
         if (i) {
             intersect.insert(inodes.begin(), inodes.end());
             i = false;
@@ -86,6 +86,7 @@ inodeset TagFS::getInodesFromTags(tagvec &tags) {
 }
 
 num_t TagFS::getNewInode() {
+//    std::cout << "GetNewInode() -> " << new_inode_counter << std::endl;
     return new_inode_counter++;
 }
 
@@ -120,35 +121,41 @@ int TagFS::createNewFileMetaData(tagvec &tags, num_t newInode) {
     tagsUpdate(tagNameToTagid(fileTag.name), fileTag);
 
     if (inodetoFilenameGet(newInode).empty()) {
-        std::cout << "performing inseeert" << std::endl;
+#ifdef DEBUG
+        std::cout << "performing insert" << std::endl;
+#endif
         inodetoFilenameInsert(newInode, fileTag.name);
     }
     else {
         inodetoFilenameUpdate(newInode, fileTag.name);
     }
-    // TODO: remove legacy (we need to allow multiples files with the same filename)
-//    if (tagInodeMap.find(tags[tags.size() - 1]) != tagInodeMap.end()) {
-//#ifdef DEBUG
-//        std::cout << "file exist: " << tags << std::endl;
-//#endif
-//        return -1;
-//    }
 
     for (auto &tag: tags) {
         auto tagId = tagNameToTagid(tag.name);
-//        if (!tagToInodeGet(tagId).empty()) {
         if (tagToInodeFind(tagId)) {
+//            std::cout  << "tagToInodeAddInode(" << tagId << ", " << newInode << ")" << std::endl;
             tagToInodeAddInode(tagId, newInode);
-        }
-        else {
+        } else {
+#ifdef DEBUG
+            std::cout  << "tagToInodeInsert(" << tagId << ", " << newInode << ")" << std::endl;
+#endif
             tagToInodeInsert(tagId, newInode);
         }
 
-//        if (!inodeToTagGet(newInode).empty())
-        if (inodeToTagFind(newInode))
-            inodeToTagAddTagId(newInode, tagId);
-        else
+        if (inodeToTagFind(newInode)) {
+#ifdef DEBUG
+            std::cout << "inodeToTagAddTagId(" << newInode << ", " << tagId << ")" << std::endl;
+#endif
+            int res = inodeToTagAddTagId(newInode, tagId);
+#ifdef DEBUG
+            std::cout << "RESULT: " << res << std::endl;
+#endif
+        } else {
+#ifdef DEBUG
+            std::cout << "inodeToTagInsert(" << newInode << ", " << tagId << ")" << std::endl;
+#endif
             inodeToTagInsert(newInode, tagId);
+        }
     }
     return 0;
 }
@@ -162,10 +169,25 @@ int TagFS::deleteFileMetaData(tagvec &tags, num_t fileInode) {
 #endif
         return -1;
     }
+#ifdef DEBUG
+    std::cout << "deleteFileMetaData started" << std::endl;
+#endif
     auto fileTagId = tagNameToTagid(tags.back().name);
+#ifdef DEBUG
+    std::cout << "tagNameToTagid done" << std::endl;
+#endif
     tagToInodeDeleteInodes({fileInode});
+#ifdef DEBUG
+    std::cout << "tagToInodeDeleteInodes done" << std::endl;
+#endif
     inodeToTagDelete(fileInode);
+#ifdef DEBUG
+    std::cout << "inodeToTagDelete done" << std::endl;
+#endif
     inodetoFilenameDelete(fileInode);
+#ifdef DEBUG
+    std::cout << "inodetoFilenameDelete done" << std::endl;
+#endif
     auto residualInodes = tagToInodeGet(fileTagId);
     if (residualInodes.empty()) {
         inodeToTagDeleteTags({static_cast<long>(fileTagId)});
@@ -274,7 +296,9 @@ int TagFS::tagsUpdate(num_t tagId, tag_t newTag) {
 tag_t TagFS::tagsGet(num_t tagId) {
     auto res = tags.find_one(
             document{} << _ID << tagId << finalize);
+#ifdef DEBUG
     std::cout << "Tag id: " << tagId << std::endl;
+#endif
     if(res) {
         bsoncxx::document::view view = res->view();
         return { .type=view[TAG_TYPE].get_int64(),
@@ -303,7 +327,7 @@ strvec TagFS::tagNamesByTagType(num_t type) {
 int TagFS::tagToInodeInsert(num_t tagId, num_t inode) {
 //    bsoncxx::document::value doc_value;
     bsoncxx::stdx::optional<mongocxx::result::insert_one> res;
-    if (inode > 0) {
+    if (inode >= 0) {
         auto doc_value = document{} << _ID << tagId << INODES << open_array << inode << close_array << finalize;
         res = tagToInode.insert_one( doc_value.view() );
     }
@@ -379,12 +403,16 @@ int TagFS::tagToInodeAddInode(num_t tagId, num_t inode) {
 }
 
 int TagFS::tagToInodeDeleteInodes(const numvec &inodes) {
-    auto pull_query = document{} << PULL << open_document << INODES << open_document << IN << open_array;
-    for (const auto &inode: inodes) {
-        pull_query = pull_query << inode;
-    }
-    auto res = tagToInode.update_many(document{} << finalize,
-                                      pull_query << close_array << close_document << close_document << finalize);
+    auto doc = bsoncxx::builder::basic::document{};
+    doc.append(kvp(IN, [&inodes](sub_array child) {
+        for (const auto& inode : inodes) {
+            child.append(inode);
+        }
+    }));
+    auto pull_query_finalized = document{} << PULL << open_document << INODES << doc << close_document << finalize;
+
+    auto res = tagToInode.update_many({}, pull_query_finalized.view());
+
     if (!res)
         return -1;
     return 0;
@@ -393,28 +421,32 @@ int TagFS::tagToInodeDeleteInodes(const numvec &inodes) {
 
 //////////////////////////////////////////  InodeToTag collection manipulation  /////////////////////////////////////////////
 
-int TagFS::inodeToTagInsert(num_t inode, num_t tagsIds) {
+int TagFS::inodeToTagInsert(num_t inode, num_t tagsId) {
     bsoncxx::stdx::optional<mongocxx::result::insert_one> res;
-    if (tagsIds > 0) {
-        auto doc_value = document{} << _ID << inode << TAGS << open_array << tagsIds << close_array << finalize;
-        res = inodeToTag.insert_one( doc_value.view() );
-    }
-    else {
-        auto doc_value = document{} << _ID << inode << TAGS << open_array << close_array << finalize;
-        res = inodeToTag.insert_one( doc_value.view() );
-    }
+    auto doc_value = document{} << _ID << inode << TAGS << open_array << tagsId << close_array << finalize;
+    res = inodeToTag.insert_one( doc_value.view() );
     if (!res)
         return -1;
     return 0;
 }
 
 int TagFS::inodeToTagUpdate(num_t inode, const numvec &tagsIds) {
-    auto doc_value = document{} << _ID << inode << TAGS << open_array;
-    for (const num_t tagid: tagsIds) {
-        doc_value = doc_value << tagid;
-    }
-    auto doc_finalized = doc_value << close_array << finalize;
-    auto res = inodeToTag.update_one(document{} << _ID << inode << finalize, doc_finalized.view());
+    // auto doc_value = document{} << _ID << inode << TAGS << open_array;
+    // for (const num_t tagid: tagsIds) {
+    //     doc_value = doc_value << tagid;
+    // }
+    // auto doc_finalized = doc_value << close_array << finalize;
+    // auto res = inodeToTag.update_one(document{} << _ID << inode << finalize, doc_finalized.view());
+
+    auto tags = bsoncxx::builder::basic::document{};
+    tags.append(kvp(TAGS, [&tagsIds](sub_array child) {
+        for (const auto& tagid : tagsIds) {
+            child.append(tagid);
+        }
+    }));
+    // auto query_finalized = document{} << tags << finalize;
+    auto res = inodeToTag.update_one(document{} << _ID << inode << finalize, tags.view());
+
     if (!res)
         return -1;
     return 0;
@@ -450,7 +482,7 @@ int TagFS::inodeToTagDelete(num_t inode) {
 }
 
 int TagFS::inodeToTagAddTagId(num_t inode, num_t tagid) {
-    auto res = tagToInode.update_one(
+    auto res = inodeToTag.update_one(
             document{} << _ID << inode << finalize,
             document{} << PUSH << open_document << TAGS << tagid << close_document << finalize);
     if (!res)
@@ -459,12 +491,14 @@ int TagFS::inodeToTagAddTagId(num_t inode, num_t tagid) {
 }
 
 int TagFS::inodeToTagDeleteTags(const numvec &tagIds) {
-    auto pull_query = document{} << PULL << open_document << TAGS << open_document << IN << open_array;
-    for (const auto &tagid: tagIds) {
-        pull_query = pull_query << tagid;
-    }
-    auto res = tagToInode.update_many(document{} << finalize,
-                                      pull_query << close_array << close_document << close_document << finalize);
+    auto doc = bsoncxx::builder::basic::document{};
+    doc.append(kvp(IN, [&tagIds](sub_array child) {
+        for (const auto& tagid : tagIds) {
+            child.append(tagid);
+        }
+    }));
+    auto pull_query_finalized = document{} << PULL << open_document << INODES << doc << close_document << finalize;
+    auto res = inodeToTag.update_many({}, pull_query_finalized.view());
     if (!res)
         return -1;
     return 0;
@@ -506,16 +540,14 @@ int TagFS::inodetoFilenameDelete(num_t inode) {
 ///////////////////////////////////////////////////////////////////////
 
 num_t TagFS::get_maximum_inode() {
-    return 0;
-    auto sort_order = document{} << "$_id" << -1 << finalize;
+    auto sort_order = document{} << _ID << -1 << finalize;
     auto opts = mongocxx::options::find{};
     opts.sort(sort_order.view());
-    opts.limit(1);
 
     auto cursor = inodeToTag.find({}, opts);
 
     for (const auto &doc: cursor) {
-        return doc[_ID].get_int64();
+        return doc[_ID].get_int64() + 1;
     }
 
     return 0;
