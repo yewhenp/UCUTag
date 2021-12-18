@@ -444,6 +444,8 @@ int TagFS::inodeToTagDelete(num_t inode) {
 }
 
 int TagFS::inodeToTagAddTagId(num_t inode, num_t tagid) {
+    std::cout << "pushing: " << tagid << " to " << inode << std::endl;
+    std::cout << inodeToTagGet(inode) << std::endl;
     auto res = tagToInode.update_one(
             document{} << _ID << inode << finalize,
             document{} << PUSH << open_document << TAGS << tagid << close_document << finalize);
@@ -507,7 +509,7 @@ num_t TagFS::get_maximum_inode() {
     auto cursor = inodeToTag.find({}, opts);
 
     for (const auto &doc: cursor) {
-        return doc[_ID].get_int64();
+        return doc[_ID].get_int64() + 1;
     }
 
     return 0;
