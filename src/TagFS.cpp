@@ -67,6 +67,7 @@ inodeset TagFS::getInodesFromTags(tagvec &tags) {
     bool i = true;
     for (const auto &tag: tags) {
         auto inodes = tagToInodeGet(tagNameToTagid(tag.name));
+        std::cout << "for tag " << tag.name << " found inodes " << inodes << std::endl;
         if (i) {
             intersect.insert(inodes.begin(), inodes.end());
             i = false;
@@ -118,10 +119,13 @@ int TagFS::createNewFileMetaData(tagvec &tags, num_t newInode) {
     fileTag.type = TAG_TYPE_FILE;
     tagsUpdate(tagNameToTagid(fileTag.name), fileTag);
 
-    if (inodetoFilenameGet(newInode).empty())
-        inodetoFilenameInsert(newInode, std::to_string(newInode));
-    else
-        inodetoFilenameUpdate(newInode, std::to_string(newInode));
+    if (inodetoFilenameGet(newInode).empty()) {
+        std::cout << "performing inseeert" << std::endl;
+        inodetoFilenameInsert(newInode, fileTag.name);
+    }
+    else {
+        inodetoFilenameUpdate(newInode, fileTag.name);
+    }
     // TODO: remove legacy (we need to allow multiples files with the same filename)
 //    if (tagInodeMap.find(tags[tags.size() - 1]) != tagInodeMap.end()) {
 //#ifdef DEBUG
@@ -132,12 +136,16 @@ int TagFS::createNewFileMetaData(tagvec &tags, num_t newInode) {
 
     for (auto &tag: tags) {
         auto tagId = tagNameToTagid(tag.name);
-        if (!tagToInodeGet(tagId).empty())
+//        if (!tagToInodeGet(tagId).empty()) {
+        if (tagToInodeFind(tagId)) {
             tagToInodeAddInode(tagId, newInode);
-        else
+        }
+        else {
             tagToInodeInsert(tagId, newInode);
+        }
 
-        if (!inodeToTagGet(newInode).empty())
+//        if (!inodeToTagGet(newInode).empty())
+        if (inodeToTagFind(newInode))
             inodeToTagAddTagId(newInode, tagId);
         else
             inodeToTagInsert(newInode, tagId);
@@ -249,18 +257,24 @@ int TagFS::tagsAdd(tag_t tag) {
 }
 
 int TagFS::tagsUpdate(num_t tagId, tag_t newTag) {
-    auto res = tags.update_one(document{} << _ID << (ssize_t)tagId << finalize,
-                    document{} << SET << open_document <<
-                    TAG_NAME << newTag.name << TAG_TYPE << newTag.type <<
-                    close_document << finalize);
-    if (!res)
-        return -1;
-    return 0;
+    auto res_find = tags.find_one(
+            document{} << _ID << tagId << finalize);
+    if (res_find) {
+        auto res = tags.update_one(document{} << _ID << (ssize_t)tagId << finalize,
+                                   document{} << SET << open_document <<
+                                              TAG_NAME << newTag.name << TAG_TYPE << newTag.type <<
+                                              close_document << finalize);
+        if (!res)
+            return -1;
+        return 0;
+    }
+    return tagsAdd(newTag);
 }
 
 tag_t TagFS::tagsGet(num_t tagId) {
     auto res = tags.find_one(
             document{} << _ID << tagId << finalize);
+    std::cout << "Tag id: " << tagId << std::endl;
     if(res) {
         bsoncxx::document::view view = res->view();
         return { .type=view[TAG_TYPE].get_int64(),
@@ -323,6 +337,15 @@ int TagFS::tagToInodeUpdate(num_t tagId, const numvec &inodes) {
     if (!res)
         return -1;
     return 0;
+}
+
+bool TagFS::tagToInodeFind(num_t tagId) {
+    auto res = tagToInode.find_one(
+            document{} << _ID << tagId << finalize);
+    if(res) {
+        return true;
+    }
+    return false;
 }
 
 numvec TagFS::tagToInodeGet(num_t tagId) {
@@ -395,6 +418,15 @@ int TagFS::inodeToTagUpdate(num_t inode, const numvec &tagsIds) {
     if (!res)
         return -1;
     return 0;
+}
+
+bool TagFS::inodeToTagFind(num_t inode) {
+    auto res = inodeToTag.find_one(
+            document{} << _ID << inode << finalize);
+    if(res) {
+        return true;
+    }
+    return false;
 }
 
 numvec TagFS::inodeToTagGet(num_t inode) {
@@ -488,5 +520,4 @@ num_t TagFS::get_maximum_inode() {
 
     return 0;
 }
-
 

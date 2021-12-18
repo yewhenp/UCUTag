@@ -79,7 +79,12 @@ static int xmp_getattr(const char *path, struct stat *stbuf) {
     }
 
     auto [tag_vec, status] = tagFS.parseTags(path);
-    if (status != 0) return -errno;
+    if (status != 0) {
+#ifdef DEBUG
+        std::cout << " >>> parseTags error " << std::endl;
+#endif
+        return -errno;
+    }
 
     if ( tag_vec.back().type == TAG_TYPE_REGULAR ) {
         fillTagStat(stbuf);
@@ -87,9 +92,15 @@ static int xmp_getattr(const char *path, struct stat *stbuf) {
     }
 
     std::string file_path = tagFS.getFileRealPath(tag_vec);
+    std::cout << "lstating " << file_path << std::endl;
     res = lstat(file_path.c_str(), stbuf);
-    if (res == -1)
+    std::cout << "lstating done" << std::endl;
+    if (res == -1) {
+#ifdef DEBUG
+        std::cout << " >>> lstat error " << std::endl;
+#endif
         return -errno;
+    }
 
     return 0;
 }
@@ -162,8 +173,6 @@ static int xmp_opendir(const char *path, struct fuse_file_info *fi) {
 
     d->inodes = std::move(tagFS.getInodesFromTags(tags));
 
-
-
     d->entry = d->inodes.begin();
     fi->fh = (unsigned long) d;
 
@@ -209,6 +218,23 @@ static int xmp_readdir(const char *path, void *buf, fuse_fill_dir_t filler,
         } else {
             if (lstat(std::to_string(*d->entry).c_str(), &st) == -1) status = -1;
             filler(buf, filename.c_str(), &st, 0);
+//            std::cout << "lstating " << filename << std::endl;
+//            if (lstat(filename.c_str(), &st) == -1) {
+//                status = -1;
+//                continue;
+//            }
+//            filler(buf, filename.c_str(), &st, 0);
+//            auto inode_tags = tagFS.inodeToTagGet(*d->entry);
+//            for (auto& tag_id : inode_tags) {
+//                auto tag = tagFS.tagsGet(tag_id);
+//                std::cout << "Checking tag " << tag.name << std::endl;
+//                if (tag.type == TAG_TYPE_FILE) {
+//                    std::cout << "Yes" << std::endl;
+//                    filler(buf, tag.name.c_str(), &st, 0);
+//                    break;
+//                }
+//            }
+//            filler(buf, *d->entry, &st, 0);
         }
 
 
@@ -245,7 +271,7 @@ static int xmp_mknod(const char *path, mode_t mode, dev_t rdev) {
 
     int res;
     // We expect that all tags exist or last one might not exist
-    auto[tag_vecgetattr, status] = tagFS.prepareFileCreation(path);
+    auto[tag_vec, status] = tagFS.prepareFileCreation(path);
     if (status != 0) {
         return status;
 

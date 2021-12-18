@@ -98,7 +98,7 @@ public:
     int tagToInodeDelete(num_t tagId);
     int tagToInodeAddInode(num_t tagId, num_t inode);
     int tagToInodeDeleteInodes(const numvec &inodes);
-
+    bool tagToInodeFind(num_t tagId); // just check if it exists
 
 //////////////////////////////////////////  InodeToTag collection manipulation  /////////////////////////////////////////////
     int inodeToTagInsert(num_t inode, num_t tagsIds);
@@ -107,8 +107,9 @@ public:
     int inodeToTagDelete(num_t inode);
     int inodeToTagAddTagId(num_t inode, num_t tagid);
     int inodeToTagDeleteTags(const numvec &tagIds);
+    bool inodeToTagFind(num_t inode); // just check if it exists
 
-//////////////////////////////////////////  InodeToTag collection manipulation  /////////////////////////////////////////////
+    //////////////////////////////////////////  InodeToTag collection manipulation  /////////////////////////////////////////////
     int inodetoFilenameInsert(num_t inode, const std::string &filename);
     int inodetoFilenameUpdate(num_t inode, const std::string &filename);
     std::string inodetoFilenameGet(num_t inode);
