@@ -420,17 +420,27 @@ int TagFS::inodeToTagInsert(num_t inode, num_t tagsId) {
     return 0;
 }
 
-// int TagFS::inodeToTagUpdate(num_t inode, const numvec &tagsIds) {
-//     auto doc_value = document{} << _ID << inode << TAGS << open_array;
-//     for (const num_t tagid: tagsIds) {
-//         doc_value = doc_value << tagid;
-//     }
-//     auto doc_finalized = doc_value << close_array << finalize;
-//     auto res = inodeToTag.update_one(document{} << _ID << inode << finalize, doc_finalized.view());
-//     if (!res)
-//         return -1;
-//     return 0;
-// }
+int TagFS::inodeToTagUpdate(num_t inode, const numvec &tagsIds) {
+    // auto doc_value = document{} << _ID << inode << TAGS << open_array;
+    // for (const num_t tagid: tagsIds) {
+    //     doc_value = doc_value << tagid;
+    // }
+    // auto doc_finalized = doc_value << close_array << finalize;
+    // auto res = inodeToTag.update_one(document{} << _ID << inode << finalize, doc_finalized.view());
+
+    auto tags = bsoncxx::builder::basic::document{};
+    tags.append(kvp(TAGS, [&tagsIds](sub_array child) {
+        for (const auto& tagid : tagsIds) {
+            child.append(tagid);
+        }
+    }));
+    // auto query_finalized = document{} << tags << finalize;
+    auto res = inodeToTag.update_one(document{} << _ID << inode << finalize, tags.view());
+
+    if (!res)
+        return -1;
+    return 0;
+}
 
 bool TagFS::inodeToTagFind(num_t inode) {
     auto res = inodeToTag.find_one(
