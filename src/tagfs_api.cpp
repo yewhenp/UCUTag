@@ -894,15 +894,18 @@ void *xmp_init(struct fuse_conn_info *conn) {
     FUSE_ENABLE_XTIMES(conn);
 #endif
     tagFS.new_inode_counter = tagFS.get_maximum_inode();
-    int fd;
-    auto tag_vec = tagvec(1, {TAG_TYPE_REGULAR, "@"});
-    num_t new_inode = tagFS.getNewInode();
-    std::string new_path = std::to_string(new_inode);
-    fd = open(new_path.c_str(), O_WRONLY | O_APPEND | O_CREAT, 0644);
-    if (tagFS.createNewFileMetaData(tag_vec, new_inode) != 0) {
-        unlink(new_path.c_str());
+    // chec if @ already exists
+    if (tagFS.new_inode_counter == 0) {
+        int fd;
+        auto tag_vec = tagvec(1, {TAG_TYPE_REGULAR, "@"});
+        num_t new_inode = tagFS.getNewInode();
+        std::string new_path = std::to_string(new_inode);
+        fd = open(new_path.c_str(), O_WRONLY | O_APPEND | O_CREAT, 0644);
+        if (tagFS.createNewFileMetaData(tag_vec, new_inode) != 0) {
+            unlink(new_path.c_str());
+        }
+        close(fd);
     }
-    close(fd);
 
 
     return nullptr;
