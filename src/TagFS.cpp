@@ -338,26 +338,16 @@ int TagFS::tagToInodeInsert(num_t tagId, num_t inode) {
     if (!res)
         return -1;
     return 0;
-
-//    for (const num_t inode: inodes) {
-//        std::cout << "Inserting inode " << inode << " To tagid " << tagId << std::endl;
-//        doc_value = doc_value << inode;
-//    }
-//    auto doc_finalized = doc_value << close_array << finalize;
-
-//    auto res = tagToInode.insert_one( doc_value.view() );
-//    if (!res)
-//        return -1;
-//    return 0;
 }
 
 int TagFS::tagToInodeUpdate(num_t tagId, const numvec &inodes) {
-    auto doc_value = document{} << _ID << tagId << INODES << open_array;
-    for (const num_t inode: inodes) {
-        doc_value = doc_value << inode;
-    }
-    auto doc_finalized = doc_value << close_array << finalize;
-    auto res = tagToInode.update_one(document{} << _ID << tagId << finalize, doc_finalized.view());
+    auto inodes_arr = bsoncxx::builder::basic::document{};
+    inodes_arr.append(kvp(TAGS, [&inodes](sub_array child) {
+        for (const auto& inode : inodes) {
+            child.append(inode);
+        }
+    }));
+    auto res = inodeToTag.update_one(document{} << _ID << tagId << finalize, inodes_arr.view());
     if (!res)
         return -1;
     return 0;
@@ -431,20 +421,12 @@ int TagFS::inodeToTagInsert(num_t inode, num_t tagsId) {
 }
 
 int TagFS::inodeToTagUpdate(num_t inode, const numvec &tagsIds) {
-    // auto doc_value = document{} << _ID << inode << TAGS << open_array;
-    // for (const num_t tagid: tagsIds) {
-    //     doc_value = doc_value << tagid;
-    // }
-    // auto doc_finalized = doc_value << close_array << finalize;
-    // auto res = inodeToTag.update_one(document{} << _ID << inode << finalize, doc_finalized.view());
-
     auto tags = bsoncxx::builder::basic::document{};
     tags.append(kvp(TAGS, [&tagsIds](sub_array child) {
         for (const auto& tagid : tagsIds) {
             child.append(tagid);
         }
     }));
-    // auto query_finalized = document{} << tags << finalize;
     auto res = inodeToTag.update_one(document{} << _ID << inode << finalize, tags.view());
 
     if (!res)
