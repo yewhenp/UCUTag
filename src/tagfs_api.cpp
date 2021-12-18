@@ -394,7 +394,7 @@ static int xmp_rename(const char *from, const char *to) {
         // Rename tags one by one
         return 0;
     }
-    if (status_to == 0 || (status_to != 0 && tag_vec_to.size() < tag_name_to.size() - 1)) {
+    if ((status_to == 0 && !(tag_vec_to.back() == tag_vec_from.back())) || (status_to != 0 && tag_vec_to.size() < tag_name_to.size() - 1)) {
         errno = EEXIST;
         return -errno;
     }

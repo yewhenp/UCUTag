@@ -18,7 +18,7 @@ def animator(tree_heights, tree_file_widths, ext_data, tag_data, data_key):
 def main():
     parser = argparse.ArgumentParser(description="FS benchmark")
     parser.add_argument("--path-ext", dest="path_ext", default="scripts/ext4_rez.json", type=str)
-    parser.add_argument("--path-tag", dest="path_tag", default="scripts/ext4_rez.json", type=str)
+    parser.add_argument("--path-tag", dest="path_tag", default="scripts/tag_rez.json", type=str)
     args = parser.parse_args()
 
     with open(args.path_ext, "r") as file:
