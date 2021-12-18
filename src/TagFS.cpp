@@ -441,7 +441,7 @@ int TagFS::inodeToTagDelete(num_t inode) {
 }
 
 int TagFS::inodeToTagAddTagId(num_t inode, num_t tagid) {
-    auto res = tagToInode.update_one(
+    auto res = inodeToTag.update_one(
             document{} << _ID << inode << finalize,
             document{} << PUSH << open_document << TAGS << tagid << close_document << finalize);
     if (!res)
@@ -454,7 +454,7 @@ int TagFS::inodeToTagDeleteTags(const numvec &tagIds) {
     for (const auto &tagid: tagIds) {
         pull_query = pull_query << tagid;
     }
-    auto res = tagToInode.update_many(document{} << finalize,
+    auto res = inodeToTag.update_many(document{} << finalize,
                                       pull_query << close_array << close_document << close_document << finalize);
     if (!res)
         return -1;
