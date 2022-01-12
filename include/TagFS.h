@@ -43,17 +43,19 @@ private:
     const std::string FILENAME = "filename";
     const std::string GROUP    = "group";
 
+    // helpers structures for interaction with db
     mongocxx::instance instance{}; // This should be done only once.
     mongocxx::uri uri{"mongodb://localhost:27017"};
     mongocxx::client client;
-
     mongocxx::database db;
+
+    // collections in DB
     mongocxx::collection tags;
     mongocxx::collection tagToInode;
     mongocxx::collection inodeToTag;
     mongocxx::collection inodetoFilename;
-    std::hash<std::string> hasher;
 
+    std::hash<std::string> hasher;
     inline int collectionDelete(mongocxx::collection &collection, num_t id);
 
 
@@ -72,21 +74,9 @@ public:
     std::pair<tagvec, int> prepareFileCreation(const char *path);
 
 public:
-    // TODO: caching
-    // tagid = hash(tagname)
-//    tags:               [ {tagid, tagname, tagtype} }
-//    tagInodeMap:        [ {tagid, inodes: [i1, i2, ...] } ]
-//    inodeToTag:         [ {inode, tagids: [tagid1, tagid2, ...] } ]
-//    inodetoFilename:    [ {inode, filename} ]
-
-//    inode_counter - in init max(inode)
-
-
 ////////////////////////////////////////////  tags collection manipulation  ///////////////////////////////////////////
 
     num_t tagNameToTagid(const std::string& tagname);
-
-
     int tagsAdd(tag_t tag);                                               // -1 if error else 0
     int tagsUpdate(num_t tagId, tag_t newTag);                            // -1 if error else 0
     tag_t tagsGet(num_t tagId);                                           // {} if error
@@ -118,13 +108,8 @@ public:
     std::string inodetoFilenameGet(num_t inode);
     int inodetoFilenameDelete(num_t inode);
 
-//    tagInodeMap_t tagInodeMap{};
-//    inodeTagMap_t inodeTagMap{};
-//    inodeFilenameMap_t inodeFilenameMap{};
-//    tagNameTag_t tagNameTag{};
-
     num_t new_inode_counter = 0;
-    num_t get_maximum_inode();
+    num_t getMaximumInode();
 };
 
 extern TagFS tagFS;

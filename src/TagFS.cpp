@@ -8,19 +8,6 @@ std::pair<tagvec, int> TagFS::parseTags(const char *path) {
     std::cout << "Splitted: " << splitted << std::endl;
 #endif
 
-
-//    if (splitted.empty() || splitted[0] == ".") {
-//
-//        for(auto const& [tag, inode]: tagInodeMap) {
-//            if(tag.type == TAG_TYPE_FILE) {
-//                res.push_back(tag);
-//            }
-//        }
-//#ifdef DEBUG
-//        std::cout << "Dot parse: " << path << " : " << res << std::endl;
-//#endif
-//        return {res, 0};
-//    }
     for (auto &tagName: splitted) {
         auto tag = tagsGet(tagNameToTagid(tagName));
         if (tag == tag_t{}) {
@@ -30,8 +17,6 @@ std::pair<tagvec, int> TagFS::parseTags(const char *path) {
         res.push_back(tag);
     }
 
-//    std::transform(splitted.begin(), splitted.end(), std::back_inserter(res),
-//                   [this](const std::string &name) -> tag_t {return tagNameTag[name];});
 #ifdef DEBUG
     std::cout << "Parsed path: " << path << " : " << res << std::endl;
 #endif
@@ -240,9 +225,6 @@ int TagFS::createRegularTags(strvec &tagNames) {
 }
 
 TagFS::TagFS() {
-//    mongocxx::instance instance{}; // This should be done only once.
-//    mongocxx::uri uri("mongodb://localhost:27017");
-//    mongocxx::client client(uri);
     client = mongocxx::client(uri);
     db = client["ucutag"];
     tags = db["tags"];
@@ -521,7 +503,7 @@ int TagFS::inodetoFilenameDelete(num_t inode) {
 
 ///////////////////////////////////////////////////////////////////////
 
-num_t TagFS::get_maximum_inode() {
+num_t TagFS::getMaximumInode() {
     auto sort_order = document{} << _ID << -1 << finalize;
     auto opts = mongocxx::options::find{};
     opts.sort(sort_order.view());
@@ -544,9 +526,6 @@ int TagFS::renameFileTag(num_t inode, const std::string &oldTagName, const std::
     oldTags.erase(std::remove(oldTags.begin(), oldTags.end(), oldTagId), oldTags.end());
     oldTags.push_back(tagNameToTagid(newTagName));
     inodeToTagUpdate(inode, oldTags);
-//    for(auto& tag: oldTags) {
-//
-//    }
     inodetoFilenameUpdate(inode, newTagName);
 
     auto oldInodes = tagToInodeGet(oldTagId);

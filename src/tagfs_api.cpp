@@ -1,36 +1,6 @@
-/*
-  FUSE: Filesystem in Userspace
-  Copyright (C) 2001-2007  Miklos Szeredi <miklos@szeredi.hu>
-  Copyright (C) 2011       Sebastian Pipping <sebastian@pipping.org>
-
-  This program can be distributed under the terms of the GNU GPLv2.
-  See the file COPYING.
-*/
-
-/** @file
- *
- * This file system mirrors the existing file system hierarchy of the
- * system, starting at the root file system. This is implemented by
- * just "passing through" all requests to the corresponding user-space
- * libc functions. This implementation is a little more sophisticated
- * than the one in passthrough.c, so performance is not quite as bad.
- *
- * Compile with:
- *
- *     gcc -Wall passthrough_fh.c `pkg-config fuse3 --cflags --libs` -lulockmgr -o passthrough_fh
- *
- * ## Source code ##
- * \include passthrough_fh.c
- */
-
 #define FUSE_USE_VERSION 26
 
-#ifdef HAVE_CONFIG_H
-#include <config.h>
-#endif
-
 #include <fuse.h>
-
 #ifdef HAVE_LIBULOCKMGR
 #include <ulockmgr.h>
 #endif
@@ -38,15 +8,18 @@
 #include <cstdio>
 #include <cstdlib>
 #include <cstring>
-#include <unistd.h>
-#include <fcntl.h>
-#include <sys/stat.h>
-#include <dirent.h>
 #include <cerrno>
 #include <ctime>
 #include <filesystem>
 
+#include <unistd.h>
+#include <fcntl.h>
+#include <sys/stat.h>
+#include <dirent.h>
+#include <sys/file.h> 
+
 #include "string_utils.h"
+#include "TagFS.h"
 
 namespace fs = std::filesystem;
 
@@ -54,9 +27,7 @@ namespace fs = std::filesystem;
 #include <sys/xattr.h>
 #endif
 
-#include <sys/file.h> /* flock(2) */
 
-#include <TagFS.h>
 TagFS tagFS;
 
 struct tag_dirp {
@@ -64,15 +35,12 @@ struct tag_dirp {
     inodeset::iterator entry;
 };
 
-
-
 static int xmp_getattr(const char *path, struct stat *stbuf) {
-    int res;
-
 #ifdef DEBUG
     std::cout << " >>> getattr: " << path << std::endl;
 #endif
 
+    int res;
     if ( strcmp( path, "/" ) == 0 || strcmp( path, "/@" ) == 0) {
         fillTagStat(stbuf);
         return 0;
@@ -92,9 +60,7 @@ static int xmp_getattr(const char *path, struct stat *stbuf) {
     }
 
     std::string file_path = tagFS.getFileRealPath(tag_vec);
-//    std::cout << "lstating " << file_path << std::endl;
     res = lstat(file_path.c_str(), stbuf);
-//    std::cout << "lstating done" << std::endl;
     if (res == -1) {
 #ifdef DEBUG
         std::cout << " >>> lstat error " << std::endl;
@@ -124,7 +90,6 @@ static int xmp_access(const char *path, int mask) {
         return 0;
     }
     std::string file_path = tagFS.getFileRealPath(tag_vec);
-//    std::cout << "FILE PATH: " << file_path << std::endl;
     res = access(file_path.c_str(), mask);
     if (res == -1)
         return -errno;
@@ -209,32 +174,11 @@ static int xmp_readdir(const char *path, void *buf, fuse_fill_dir_t filler,
                 std::cout << " >>> readdir: " << "non-file tagname: " << nonFileTagName << std::endl;
 #endif
                 // TODO: find bug: 'getNonFileTags' doesn't filter
-//                if (tagFS.tagNameTag[nonFileTagName].type == TAG_TYPE_REGULAR) {
-//                    fillTagStat(&st);
-//                    filler(buf, nonFileTagName.c_str(), &st, 0);
-//                }
                 filler(buf, nonFileTagName.c_str(), &st, 0);
             }
         } else {
             if (lstat(std::to_string(*d->entry).c_str(), &st) == -1) status = -1;
             filler(buf, filename.c_str(), &st, 0);
-//            std::cout << "lstating " << filename << std::endl;
-//            if (lstat(filename.c_str(), &st) == -1) {
-//                status = -1;
-//                continue;
-//            }
-//            filler(buf, filename.c_str(), &st, 0);
-//            auto inode_tags = tagFS.inodeToTagGet(*d->entry);
-//            for (auto& tag_id : inode_tags) {
-//                auto tag = tagFS.tagsGet(tag_id);
-//                std::cout << "Checking tag " << tag.name << std::endl;
-//                if (tag.type == TAG_TYPE_FILE) {
-//                    std::cout << "Yes" << std::endl;
-//                    filler(buf, tag.name.c_str(), &st, 0);
-//                    break;
-//                }
-//            }
-//            filler(buf, *d->entry, &st, 0);
         }
 
 
@@ -524,64 +468,6 @@ static int xmp_utimens(const char *path, const struct timespec ts[2],
 }
 #endif
 
-//static int xmp_create(const char *path, mode_t mode, struct fuse_file_info *fi) {
-//#ifdef DEBUG
-//    std::cout << " >>> create: " << path << std::endl;
-//#endif
-//
-//    int fd;
-//
-//    auto tag_vec = tagvec();
-//    bool last_exist = false;
-//    for(auto& tagName: split(path, "/")){
-//
-//        if (tagFS.tagNameTag.find(tagName) != tagFS.tagNameTag.end()) {
-//            tag_vec.push_back(tagFS.tagNameTag[tagName]);
-//            last_exist = true;
-//        } else {
-//            last_exist = false;
-//            tag_vec.push_back({TAG_TYPE_REGULAR, tagName});
-//        }
-//    }
-//    if (last_exist) {
-//#ifdef DEBUG
-//        std::cout << " >>> create exiting because exist: " << path << std::endl;
-//#endif
-//
-//        errno = EEXIST;
-//        return -errno;
-//    }
-//
-//
-//    num_t new_inode = tagFS.getNewInode();
-//    std::string new_path = std::to_string(new_inode);
-//
-//#ifdef DEBUG
-//    std::cout << " >>> create inode got: " << new_path << std::endl;
-//#endif
-//
-//    fd = open(new_path.c_str(), fi->flags, mode);
-//    if (fd == -1)
-//        return -errno;
-//
-//#ifdef DEBUG
-//    std::cout << " >>> create open done: " << new_path << std::endl;
-//#endif
-//
-//    if (tagFS.createNewFileMetaData(tag_vec, new_inode) != 0) {
-//        close(fd);
-//        unlink(new_path.c_str());
-//        errno = EEXIST;
-//        return -errno;
-//    }
-//
-//#ifdef DEBUG
-//    std::cout << " >>> create file data created: " << new_path << std::endl;
-//#endif
-//
-//    fi->fh = fd;
-//    return 0;
-//}
 
 static int xmp_open(const char *path, struct fuse_file_info *fi) {
 #ifdef DEBUG
@@ -877,7 +763,7 @@ void *xmp_init(struct fuse_conn_info *conn) {
     FUSE_ENABLE_SETVOLNAME(conn);
     FUSE_ENABLE_XTIMES(conn);
 #endif
-    tagFS.new_inode_counter = tagFS.get_maximum_inode();
+    tagFS.new_inode_counter = tagFS.getMaximumInode();
     // chec if @ already exists
     if (tagFS.new_inode_counter == 0) {
         int fd;
@@ -954,29 +840,6 @@ static struct fuse_operations xmp_oper = {
 #endif
 };
 
-//void init_from_dir(const std::string &root){
-//    std::size_t inode_count = 0;
-//    for(auto& p: fs::recursive_directory_iterator(root, std::filesystem::directory_options::skip_permission_denied)){
-//        tag_t tag;
-//        tag.name = *(--p.path().end());
-//        if(!std::filesystem::is_directory(p)){
-//            tag.type = TAG_NAME;
-//        } else {
-//            tag.type = FILE_NAME;
-//            tagFS.inodeFilenameMap.insert({inode_count, tag.name});
-//        }
-//        tagFS.inodeTagMap[inode_count].insert(tag);
-//        tagFS.tagInodeMap[tag].insert(inode_count);
-//        tagFS.tagNameTag.insert({tag.name, tag});
-//        inode_count++;
-//    }
-//
-//    std::cout << inode_count << std::endl;
-//    std::cout << tagFS.inodeTagMap.size() << std::endl;
-//    std::cout << tagFS.tagInodeMap.size() << std::endl;
-//    std::cout << tagFS.tagNameTag.size() << std::endl;
-//    std::cout << tagFS.inodeFilenameMap.size() << std::endl;
-//}
 
 int main(int argc, char *argv[]) {
     umask(0);
