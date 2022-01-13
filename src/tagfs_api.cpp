@@ -1,32 +1,19 @@
 #define FUSE_USE_VERSION 26
 
 #include <fuse.h>
-#ifdef HAVE_LIBULOCKMGR
-#include <ulockmgr.h>
-#endif
-
-#include <cstdio>
 #include <cstdlib>
 #include <cstring>
 #include <cerrno>
-#include <ctime>
-#include <filesystem>
-
 #include <unistd.h>
 #include <fcntl.h>
 #include <sys/stat.h>
-#include <dirent.h>
 #include <sys/file.h> 
 
+#include "tagfs_api.h"
 #include "string_utils.h"
 #include "TagFS.h"
 
 namespace fs = std::filesystem;
-
-#ifdef HAVE_SETXATTR
-#include <sys/xattr.h>
-#endif
-
 
 TagFS tagFS;
 
@@ -35,7 +22,7 @@ struct tag_dirp {
     inodeset::iterator entry;
 };
 
-static int xmp_getattr(const char *path, struct stat *stbuf) {
+static int ucutag_getattr(const char *path, struct stat *stbuf) {
 #ifdef DEBUG
     std::cout << " >>> getattr: " << path << std::endl;
 #endif
@@ -71,7 +58,7 @@ static int xmp_getattr(const char *path, struct stat *stbuf) {
     return 0;
 }
 
-static int xmp_access(const char *path, int mask) {
+static int ucutag_access(const char *path, int mask) {
 #ifdef DEBUG
     std::cout << " >>> access: " << path << std::endl;
 #endif
@@ -97,7 +84,7 @@ static int xmp_access(const char *path, int mask) {
     return 0;
 }
 
-static int xmp_readlink(const char *path, char *buf, size_t size) {
+static int ucutag_readlink(const char *path, char *buf, size_t size) {
 #ifdef DEBUG
     std::cout << " >>> readlink: " << path << std::endl;
 #endif
@@ -115,7 +102,7 @@ static int xmp_readlink(const char *path, char *buf, size_t size) {
     return 0;
 }
 
-static int xmp_opendir(const char *path, struct fuse_file_info *fi) {
+static int ucutag_opendir(const char *path, struct fuse_file_info *fi) {
 #ifdef DEBUG
     std::cout << " >>> opendir: " << path << std::endl;
 #endif
@@ -148,7 +135,7 @@ static inline struct tag_dirp *get_dirp(struct fuse_file_info *fi) {
     return (struct tag_dirp *) (uintptr_t) fi->fh;
 }
 
-static int xmp_readdir(const char *path, void *buf, fuse_fill_dir_t filler,
+static int ucutag_readdir(const char *path, void *buf, fuse_fill_dir_t filler,
                        off_t offset, struct fuse_file_info *fi) {
 
 #ifdef DEBUG
@@ -188,7 +175,7 @@ static int xmp_readdir(const char *path, void *buf, fuse_fill_dir_t filler,
     return status;
 }
 
-static int xmp_releasedir(const char *path, struct fuse_file_info *fi) {
+static int ucutag_releasedir(const char *path, struct fuse_file_info *fi) {
 #ifdef DEBUG
     std::cout << " >>> release: " << path << std::endl;
 #endif
@@ -198,7 +185,7 @@ static int xmp_releasedir(const char *path, struct fuse_file_info *fi) {
     return 0;
 }
 
-static int xmp_mkdir(const char *path, mode_t mode) {
+static int ucutag_mkdir(const char *path, mode_t mode) {
 #ifdef DEBUG
     std::cout << " >>> mkdir: " << path << std::endl;
 #endif
@@ -206,9 +193,7 @@ static int xmp_mkdir(const char *path, mode_t mode) {
     return tagFS.createRegularTags(tagNames);
 }
 
-
-
-static int xmp_mknod(const char *path, mode_t mode, dev_t rdev) {
+static int ucutag_mknod(const char *path, mode_t mode, dev_t rdev) {
 #ifdef DEBUG
     std::cout << " >>> mknod: " << path << std::endl;
 #endif
@@ -222,7 +207,7 @@ static int xmp_mknod(const char *path, mode_t mode, dev_t rdev) {
     }
     // TODO: not sure if it's needed: called for creation of all non-directory, non-symlink nodes.
     if (S_ISDIR(mode)) {
-        xmp_mkdir(path, mode);
+        ucutag_mkdir(path, mode);
     }
     else {
         num_t new_inode = tagFS.getNewInode();
@@ -251,7 +236,7 @@ static int xmp_mknod(const char *path, mode_t mode, dev_t rdev) {
     return 0;
 }
 
-static int xmp_unlink(const char *path) {
+static int ucutag_unlink(const char *path) {
 #ifdef DEBUG
     std::cout << " >>> unlink: " << path << std::endl;
 #endif
@@ -278,7 +263,7 @@ static int xmp_unlink(const char *path) {
     return 0;
 }
 
-static int xmp_rmdir(const char *path) {
+static int ucutag_rmdir(const char *path) {
 #ifdef DEBUG
     std::cout << " >>> rmdir: " << path << std::endl;
 #endif
@@ -288,7 +273,7 @@ static int xmp_rmdir(const char *path) {
     return tagFS.deleteRegularTags(tag_vec);
 }
 
-static int xmp_symlink(const char *from, const char *to) {
+static int ucutag_symlink(const char *from, const char *to) {
 #ifdef DEBUG
     std::cout << " >>> symlink: " << from << " -> " << to << std::endl;
 #endif
@@ -318,7 +303,7 @@ static int xmp_symlink(const char *from, const char *to) {
 }
 
 //// TODO: Replace dir rename with tag rename
-static int xmp_rename(const char *from, const char *to) {
+static int ucutag_rename(const char *from, const char *to) {
 #ifdef DEBUG
     std::cout << " >>> rename: " << from << " -> " << to << std::endl;
 #endif
@@ -368,7 +353,7 @@ static int xmp_rename(const char *from, const char *to) {
     return 0;
 }
 
-static int xmp_link(const char *from, const char *to) {
+static int ucutag_link(const char *from, const char *to) {
 #ifdef DEBUG
     std::cout << " >>> link: " << from << " -> " << to << std::endl;
 #endif
@@ -398,7 +383,7 @@ static int xmp_link(const char *from, const char *to) {
     return 0;
 }
 
-static int xmp_chmod(const char *path, mode_t mode) {
+static int ucutag_chmod(const char *path, mode_t mode) {
 #ifdef DEBUG
     std::cout << " >>> chmod: " << path << std::endl;
 #endif
@@ -415,7 +400,7 @@ static int xmp_chmod(const char *path, mode_t mode) {
     return 0;
 }
 
-static int xmp_chown(const char *path, uid_t uid, gid_t gid) {
+static int ucutag_chown(const char *path, uid_t uid, gid_t gid) {
 #ifdef DEBUG
     std::cout << " >>> chown: " << path << std::endl;
 #endif
@@ -432,7 +417,7 @@ static int xmp_chown(const char *path, uid_t uid, gid_t gid) {
     return 0;
 }
 
-static int xmp_truncate(const char *path, off_t size) {
+static int ucutag_truncate(const char *path, off_t size) {
 #ifdef DEBUG
     std::cout << " >>> truncate: " << path << std::endl;
 #endif
@@ -450,26 +435,7 @@ static int xmp_truncate(const char *path, off_t size) {
     return 0;
 }
 
-#ifdef HAVE_UTIMENSAT
-static int xmp_utimens(const char *path, const struct timespec ts[2],
-               struct fuse_file_info *fi)
-{
-    int res;
-
-    /* don't use utime/utimes since they follow symlinks */
-    if (fi)
-        res = futimens(fi->fh, ts);
-    else
-        res = utimensat(0, path, ts, AT_SYMLINK_NOFOLLOW);
-    if (res == -1)
-        return -errno;
-
-    return 0;
-}
-#endif
-
-
-static int xmp_open(const char *path, struct fuse_file_info *fi) {
+static int ucutag_open(const char *path, struct fuse_file_info *fi) {
 #ifdef DEBUG
     std::cout << " >>> open: " << path << std::endl;
 #endif
@@ -478,8 +444,6 @@ static int xmp_open(const char *path, struct fuse_file_info *fi) {
     std::string file_path;
     num_t new_inode;
     inodeset file_inode_set;
-//    tagvec tag_vec;
-//    int status;
 
     if (fi->flags & O_CREAT) {
         auto[tag_vec, status] = tagFS.prepareFileCreation(path);
@@ -506,7 +470,7 @@ static int xmp_open(const char *path, struct fuse_file_info *fi) {
     return 0;
 }
 
-static int xmp_read(const char *path, char *buf, size_t size, off_t offset,
+static int ucutag_read(const char *path, char *buf, size_t size, off_t offset,
                     struct fuse_file_info *fi) {
 #ifdef DEBUG
     std::cout << " >>> read: " << path << std::endl;
@@ -522,7 +486,7 @@ static int xmp_read(const char *path, char *buf, size_t size, off_t offset,
     return res;
 }
 
-static int xmp_read_buf(const char *path, struct fuse_bufvec **bufp,
+static int ucutag_read_buf(const char *path, struct fuse_bufvec **bufp,
                         size_t size, off_t offset, struct fuse_file_info *fi) {
 #ifdef DEBUG
     std::cout << " >>> read_buf: " << path << std::endl;
@@ -547,7 +511,7 @@ static int xmp_read_buf(const char *path, struct fuse_bufvec **bufp,
     return 0;
 }
 
-static int xmp_write(const char *path, const char *buf, size_t size,
+static int ucutag_write(const char *path, const char *buf, size_t size,
                      off_t offset, struct fuse_file_info *fi) {
 #ifdef DEBUG
     std::cout << " >>> write: " << path << std::endl;
@@ -563,7 +527,7 @@ static int xmp_write(const char *path, const char *buf, size_t size,
     return res;
 }
 
-static int xmp_write_buf(const char *path, struct fuse_bufvec *buf,
+static int ucutag_write_buf(const char *path, struct fuse_bufvec *buf,
                          off_t offset, struct fuse_file_info *fi) {
 #ifdef DEBUG
     std::cout << " >>> write_buf: " << path << std::endl;
@@ -580,7 +544,7 @@ static int xmp_write_buf(const char *path, struct fuse_bufvec *buf,
     return fuse_buf_copy(&dst, buf, FUSE_BUF_SPLICE_NONBLOCK);
 }
 
-static int xmp_statfs(const char *path, struct statvfs *stbuf) {
+static int ucutag_statfs(const char *path, struct statvfs *stbuf) {
 #ifdef DEBUG
     std::cout << " >>> statfs: " << path << std::endl;
 #endif
@@ -597,7 +561,7 @@ static int xmp_statfs(const char *path, struct statvfs *stbuf) {
     return 0;
 }
 
-static int xmp_flush(const char *path, struct fuse_file_info *fi) {
+static int ucutag_flush(const char *path, struct fuse_file_info *fi) {
 #ifdef DEBUG
     std::cout << " >>> flush: " << path << std::endl;
 #endif
@@ -617,7 +581,7 @@ static int xmp_flush(const char *path, struct fuse_file_info *fi) {
     return 0;
 }
 
-static int xmp_release(const char *path, struct fuse_file_info *fi) {
+static int ucutag_release(const char *path, struct fuse_file_info *fi) {
 #ifdef DEBUG
     std::cout << " >>> release: " << path << std::endl;
 #endif
@@ -628,7 +592,7 @@ static int xmp_release(const char *path, struct fuse_file_info *fi) {
     return 0;
 }
 
-static int xmp_fsync(const char *path, int isdatasync,
+static int ucutag_fsync(const char *path, int isdatasync,
                      struct fuse_file_info *fi) {
 #ifdef DEBUG
     std::cout << " >>> fsync: " << path << std::endl;
@@ -636,14 +600,8 @@ static int xmp_fsync(const char *path, int isdatasync,
 
     int res;
     (void) path;
-
-#ifndef HAVE_FDATASYNC
     (void) isdatasync;
-#else
-    if (isdatasync)
-        res = fdatasync(fi->fh);
-    else
-#endif
+
     res = fsync(fi->fh);
     if (res == -1)
         return -errno;
@@ -651,68 +609,7 @@ static int xmp_fsync(const char *path, int isdatasync,
     return 0;
 }
 
-#ifdef HAVE_POSIX_FALLOCATE
-static int xmp_fallocate(const char *path, int mode,
-            off_t offset, off_t length, struct fuse_file_info *fi)
-{
-    (void) path;
-
-    if (mode)
-        return -EOPNOTSUPP;
-
-    return -posix_fallocate(fi->fh, offset, length);
-}
-#endif
-
-#ifdef HAVE_SETXATTR
-/* xattr operations are optional and can safely be left unimplemented */
-static int xmp_setxattr(const char *path, const char *name, const char *value,
-            size_t size, int flags)
-{
-    int res = lsetxattr(path, name, value, size, flags);
-    if (res == -1)
-        return -errno;
-    return 0;
-}
-
-static int xmp_getxattr(const char *path, const char *name, char *value,
-            size_t size)
-{
-    int res = lgetxattr(path, name, value, size);
-    if (res == -1)
-        return -errno;
-    return res;
-}
-
-static int xmp_listxattr(const char *path, char *list, size_t size)
-{
-    int res = llistxattr(path, list, size);
-    if (res == -1)
-        return -errno;
-    return res;
-}
-
-static int xmp_removexattr(const char *path, const char *name)
-{
-    int res = lremovexattr(path, name);
-    if (res == -1)
-        return -errno;
-    return 0;
-}
-#endif /* HAVE_SETXATTR */
-
-#ifdef HAVE_LIBULOCKMGR
-static int xmp_lock(const char *path, struct fuse_file_info *fi, int cmd,
-            struct flock *lock)
-{
-    (void) path;
-
-    return ulockmgr_op(fi->fh, cmd, lock, &fi->lock_owner,
-               sizeof(fi->lock_owner));
-}
-#endif
-
-static int xmp_flock(const char *path, struct fuse_file_info *fi, int op) {
+static int ucutag_flock(const char *path, struct fuse_file_info *fi, int op) {
 #ifdef DEBUG
     std::cout << " >>> flock: " << path << std::endl;
 #endif
@@ -727,38 +624,7 @@ static int xmp_flock(const char *path, struct fuse_file_info *fi, int op) {
     return 0;
 }
 
-#ifdef HAVE_COPY_FILE_RANGE
-static ssize_t xmp_copy_file_range(const char *path_in,
-                   struct fuse_file_info *fi_in,
-                   off_t off_in, const char *path_out,
-                   struct fuse_file_info *fi_out,
-                   off_t off_out, size_t len, int flags)
-{
-    ssize_t res;
-    (void) path_in;
-    (void) path_out;
-
-    res = copy_file_range(fi_in->fh, &off_in, fi_out->fh, &off_out, len,
-                  flags);
-    if (res == -1)
-        return -errno;
-
-    return res;
-}
-#endif
-
-static off_t xmp_lseek(const char *path, off_t off, int whence, struct fuse_file_info *fi) {
-    off_t res;
-    (void) path;
-
-    res = lseek(fi->fh, off, whence);
-    if (res == -1)
-        return -errno;
-
-    return res;
-}
-
-void *xmp_init(struct fuse_conn_info *conn) {
+void *ucutag_init(struct fuse_conn_info *conn) {
 #ifdef __APPLE__
     FUSE_ENABLE_SETVOLNAME(conn);
     FUSE_ENABLE_XTIMES(conn);
@@ -781,69 +647,45 @@ void *xmp_init(struct fuse_conn_info *conn) {
     return nullptr;
 }
 
-int xmp_utimens(const char *, const struct timespec tv[2]) {
+int ucutag_utimens(const char *, const struct timespec tv[2]) {
     return 0;
 }
 
-void
-xmp_destroy(void *userdata) {}
+void ucutag_destroy(void *userdata) {}
 
-static struct fuse_operations xmp_oper = {
-        .getattr    = xmp_getattr,
-        .readlink   = xmp_readlink,
-        .mknod      = xmp_mknod,
-        .mkdir      = xmp_mkdir,
-        .unlink     = xmp_unlink,
-        .rmdir      = xmp_rmdir,
-        .symlink    = xmp_symlink,
-        .rename     = xmp_rename,
-        .link       = xmp_link,
-        .chmod      = xmp_chmod,
-        .chown      = xmp_chown,
-        .truncate   = xmp_truncate,
-        .open       = xmp_open,
-        .read       = xmp_read,
-        .write      = xmp_write,
-        .statfs     = xmp_statfs,
-        .flush      = xmp_flush,
-        .release    = xmp_release,
-        .fsync      = xmp_fsync,
-        .opendir    = xmp_opendir,
-        .readdir    = xmp_readdir,
-        .releasedir = xmp_releasedir,
-        .init       = xmp_init,
-        .destroy	= xmp_destroy,
-        .access     = xmp_access,
-        .utimens    = xmp_utimens,
-
-#ifdef HAVE_UTIMENSAT
-        .utimens	= xmp_utimens,
-#endif
-//        .create        = xmp_create,
-        .write_buf    = xmp_write_buf,
-        .read_buf    = xmp_read_buf,
-#ifdef HAVE_POSIX_FALLOCATE
-        .fallocate	= xmp_fallocate,
-#endif
-#ifdef HAVE_SETXATTR
-        .setxattr	= xmp_setxattr,
-    .getxattr	= xmp_getxattr,
-    .listxattr	= xmp_listxattr,
-    .removexattr	= xmp_removexattr,
-#endif
-#ifdef HAVE_LIBULOCKMGR
-        .lock		= xmp_lock,
-#endif
-        .flock        = xmp_flock
-#ifdef HAVE_COPY_FILE_RANGE
-        .copy_file_range = xmp_copy_file_range,
-#endif
+static struct fuse_operations ucutag_oper = {
+        .getattr    = ucutag_getattr,
+        .readlink   = ucutag_readlink,
+        .mknod      = ucutag_mknod,
+        .mkdir      = ucutag_mkdir,
+        .unlink     = ucutag_unlink,
+        .rmdir      = ucutag_rmdir,
+        .symlink    = ucutag_symlink,
+        .rename     = ucutag_rename,
+        .link       = ucutag_link,
+        .chmod      = ucutag_chmod,
+        .chown      = ucutag_chown,
+        .truncate   = ucutag_truncate,
+        .open       = ucutag_open,
+        .read       = ucutag_read,
+        .write      = ucutag_write,
+        .statfs     = ucutag_statfs,
+        .flush      = ucutag_flush,
+        .release    = ucutag_release,
+        .fsync      = ucutag_fsync,
+        .opendir    = ucutag_opendir,
+        .readdir    = ucutag_readdir,
+        .releasedir = ucutag_releasedir,
+        .init       = ucutag_init,
+        .destroy	= ucutag_destroy,
+        .access     = ucutag_access,
+        .utimens    = ucutag_utimens,
+        .write_buf    = ucutag_write_buf,
+        .read_buf    = ucutag_read_buf,
+        .flock        = ucutag_flock
 };
-
 
 int main(int argc, char *argv[]) {
     umask(0);
-    return fuse_main(argc, argv, &xmp_oper, nullptr);
-
+    return fuse_main(argc, argv, &ucutag_oper, nullptr);
 }
-

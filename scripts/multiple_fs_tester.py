@@ -7,7 +7,7 @@ def main():
     parser = argparse.ArgumentParser(description="FS benchmark")
     parser.add_argument("--root", dest="dir_root", required=True, type=str)
     parser.add_argument("--tree-dir-width", dest="tree_dir_width", default=3, type=int)
-    parser.add_argument("--fs-type", dest="fs_type", default="ext4", type=str)
+    parser.add_argument("--fs-type", dest="fs_type", default="ext2", type=str)
     args = parser.parse_args()
 
     create_dir_time_all, create_files_time_all, access_files_time_all, \

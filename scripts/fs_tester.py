@@ -1,6 +1,32 @@
 import os
 import time
 import argparse
+import multiprocessing as mp
+
+
+def main_fn_write(data):
+    with open(data, "w") as file:
+        file.write(str("hello"))
+
+def main_fn_access(data):
+    if not os.path.isfile(data):
+        print("Access error: ", data)
+
+def main_fn_remove(data):
+    os.remove(data)
+
+def main_fn_search(data, fs_type, dir_root):
+    if fs_type != "tag":
+        result = []
+        for root, dir, files in os.walk(dir_root):
+            if data in files:
+                result.append(os.path.join(root, data))
+        if len(result) != 1:
+            print("Search error: ", data, "got ", result)
+    else:
+        result = os.path.isfile(f"{dir_root}/{data}")
+        if not result:
+            print("Search error: ", data)
 
 
 class FSTester:
@@ -14,6 +40,7 @@ class FSTester:
         self.filenames = []
         self.dir_ind = 0
         self.file_ind = 0
+        self.num_workers = 6
 
     def create_dirs_rec(self, path, cur_height=0):
         if cur_height >= self.tree_height:
@@ -35,33 +62,24 @@ class FSTester:
             self.create_dirs_rec(cur_path, cur_height + 1)
 
     def create_files(self):
-        for file_path in self.file_pathes:
-            with open(file_path, "w") as file:
-                file.write(str("hello"))
+        pool = mp.Pool(self.num_workers)
+        [pool.apply(main_fn_write, args=(row,)) for row in self.file_pathes]
+        pool.close()
 
     def access_all_files(self):
-        for file_path in self.file_pathes:
-            if not os.path.isfile(file_path):
-                print("Access error: ", file_path)
+        pool = mp.Pool(self.num_workers)
+        [pool.apply(main_fn_access, args=(row,)) for row in self.file_pathes]
+        pool.close()
 
     def delete_files(self):
-        for file_path in self.file_pathes:
-            os.remove(file_path)
+        pool = mp.Pool(self.num_workers)
+        [pool.apply(main_fn_remove, args=(row,)) for row in self.file_pathes]
+        pool.close()
 
     def search_files(self):
-        if self.fs_type != "tag":
-            for filename in self.filenames:
-                result = []
-                for root, dir, files in os.walk(self.dir_root):
-                    if filename in files:
-                        result.append(os.path.join(root, filename))
-                if len(result) != 1:
-                    print("Search error: ", filename, "got ", result)
-        else:
-            for filename in self.filenames:
-                result = os.path.isfile(f"{self.dir_root}/{filename}")
-                if not result:
-                    print("Search error: ", filename)
+        pool = mp.Pool(self.num_workers)
+        [pool.apply(main_fn_search, args=(row, self.fs_type, self.dir_root,)) for row in self.filenames]
+        pool.close()
 
     def delete_dirs(self, path, cur_height=0):
         if cur_height >= self.tree_height:

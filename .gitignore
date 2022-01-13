@@ -1,7 +1,9 @@
 /cmake-*
-/bin
+/bin*
 /build
 /test_mount
 /test_files
 /.idea
 empty_mount_point
+/venv
+__pycache__
