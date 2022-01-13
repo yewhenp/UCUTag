@@ -13,7 +13,7 @@ arch=(x86_64)
 url="https://github.com/yewhenp/UCUTag.git"
 license=('GPL3')
 groups=()
-depends=(fuse2 mongodb-bin)
+depends=(fuse2)
 makedepends=(git 'cmake>=3.15''boost>=1.75' gcc)
 checkdepends=()
 optdepends=()
