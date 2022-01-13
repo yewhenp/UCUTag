@@ -89,6 +89,10 @@ set_target_properties(${EXECUTABLE_NAME}
 set (ALL_TARGETS ${EXECUTABLE_NAME} test_mongo_db)
 
 
+# install
+install(TARGETS ${EXECUTABLE_NAME} DESTINATION bin)
+
+
 # Include fixed CMake configuration
 include(cmake/config.cmake)
 

@@ -1,3 +1,6 @@
+#include <cstdlib>
+#include <filesystem>
+
 #include "TagFS.h"
 
 std::pair<tagvec, int> TagFS::parseTags(const char *path) {
@@ -225,8 +228,29 @@ int TagFS::createRegularTags(strvec &tagNames) {
 }
 
 TagFS::TagFS() {
+    const char* env_p = std::getenv("UCUTAG_FILE_DIR");
+    std::string file_dir;
+    if (env_p == nullptr) {
+        file_dir = "/opt/ucutag/files";
+    } else {
+        file_dir = env_p;
+    }
+    if (!std::filesystem::exists(file_dir)) {
+        if (!std::filesystem::create_directories(file_dir)) {
+            std::cerr << "Unable to create dir" << std::endl;
+            std::exit(-1);
+        }
+    }
+    int rc = chdir(file_dir.c_str());
+    if (rc < 0) {
+        std::cerr << "Unable to enter dir" << std::endl;
+        std::exit(-1);
+    }
+    std::string mong_path = "ucutag_" + file_dir;
+    std::replace(mong_path.begin(), mong_path.end(), '/', '_');
+
     client = mongocxx::client(uri);
-    db = client["ucutag"];
+    db = client[mong_path];
     tags = db["tags"];
     tagToInode = db["tagToInode"];
     inodeToTag = db["inodeToTag"];
