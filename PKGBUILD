@@ -38,6 +38,9 @@ build() {
 	git clone https://aur.archlinux.org/mongo-cxx-driver.git
 	cd mongo-cxx-driver
 	makepkg -si
+	cd ..
+	git clone https://aur.archlinux.org/mongodb-bin.git
+	makepkg -si
 	cd ../UCUTag
 	bash compile.sh
 }
