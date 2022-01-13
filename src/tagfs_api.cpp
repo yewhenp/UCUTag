@@ -154,7 +154,7 @@ static int ucutag_readdir(const char *path, void *buf, fuse_fill_dir_t filler,
     while (d->entry != d->inodes.end()) {
         struct stat st{};
         auto filename = tagFS.inodetoFilenameGet(*d->entry);
-        if (filename == "@"){
+        if (filename == "/"){
             fillTagStat(&st);
             for(auto& nonFileTagName: tagFS.tagNamesByTagType(TAG_TYPE_REGULAR)){
 #ifdef DEBUG

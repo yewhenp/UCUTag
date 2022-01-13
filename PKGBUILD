@@ -35,11 +35,15 @@ prepare() {
 }
 
 build() {
-	git clone https://aur.archlinux.org/mongo-cxx-driver.git
+	if ![ -d "mongo-cxx-driver" ]; then
+		git clone https://aur.archlinux.org/mongo-cxx-driver.git
+	fi
 	cd mongo-cxx-driver
 	makepkg -si
 	cd ..
-	git clone https://aur.archlinux.org/mongodb-bin.git
+	if ![ -d "mongodb-bin" ]; then
+		git clone https://aur.archlinux.org/mongodb-bin.git
+	fi
 	cd mongodb-bin
 	makepkg -si
 	cd ../UCUTag
