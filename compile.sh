@@ -1,4 +1,4 @@
-#!/bin/bash +x
+#!/usr/bin/env -S bash +x
 
 set -o errexit
 set -o nounset
@@ -8,6 +8,5 @@ mkdir -p build
 (
   cd build
   cmake -G"Unix Makefiles" -DCMAKE_BUILD_TYPE=${1-Release} ..
-  make -j4
+  make -j4 X11INC=/usr/include/X11 X11LIB=/usr/lib/X11
 )
-#rm -rf build
