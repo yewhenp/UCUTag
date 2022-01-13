@@ -13,8 +13,8 @@ arch=(x86_64)
 url="https://github.com/yewhenp/UCUTag.git"
 license=('GPL3')
 groups=()
-depends=('boost-libs>=1.75' fuse2 mongo-c-driver mongo-cxx-driver mongodb-bin  )
-makedepends=(git 'cmake>=3.15''boost>=1.75')
+depends=(fuse2 mongodb-bin)
+makedepends=(git 'cmake>=3.15''boost>=1.75' gcc)
 checkdepends=()
 optdepends=()
 provides=(ucutag)
@@ -35,7 +35,10 @@ prepare() {
 }
 
 build() {
-	cd UCUTag
+	git clone https://aur.archlinux.org/mongo-cxx-driver.git
+	cd mongo-cxx-driver
+	makepkg -si
+	cd ../UCUTag
 	bash compile.sh
 }
 
