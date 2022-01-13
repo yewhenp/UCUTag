@@ -35,13 +35,13 @@ prepare() {
 }
 
 build() {
-	if ![ -d "mongo-cxx-driver" ]; then
+	if [ ! -d "mongo-cxx-driver" ]; then
 		git clone https://aur.archlinux.org/mongo-cxx-driver.git
 	fi
 	cd mongo-cxx-driver
 	makepkg -si
 	cd ..
-	if ![ -d "mongodb-bin" ]; then
+	if [ ! -d "mongodb-bin" ]; then
 		git clone https://aur.archlinux.org/mongodb-bin.git
 	fi
 	cd mongodb-bin
