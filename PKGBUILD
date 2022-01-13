@@ -40,6 +40,7 @@ build() {
 	makepkg -si
 	cd ..
 	git clone https://aur.archlinux.org/mongodb-bin.git
+	cd mongodb-bin
 	makepkg -si
 	cd ../UCUTag
 	bash compile.sh
