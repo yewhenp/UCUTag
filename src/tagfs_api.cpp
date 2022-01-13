@@ -625,10 +625,6 @@ static int ucutag_flock(const char *path, struct fuse_file_info *fi, int op) {
 }
 
 void *ucutag_init(struct fuse_conn_info *conn) {
-#ifdef __APPLE__
-    FUSE_ENABLE_SETVOLNAME(conn);
-    FUSE_ENABLE_XTIMES(conn);
-#endif
     tagFS.new_inode_counter = tagFS.getMaximumInode();
     // chec if @ already exists
     if (tagFS.new_inode_counter == 0) {

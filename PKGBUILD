@@ -16,7 +16,7 @@ provides=(ucutag)
 conflicts=()
 replaces=()
 backup=()
-options=()
+options=(!buildflags)
 install=
 changelog=
 source=("git+$url")
@@ -42,12 +42,22 @@ build() {
 	cd mongodb-bin
 	makepkg -si
 	cd ../UCUTag
+	git checkout dev
+	if [ -d build ]; then
+		rm -rf build
+	fi
 	bash compile.sh
 }
 
 package() {
-	cd UCUTag
+	cd UCUTag/build
+	echo ">>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>${pkgname}"
+	echo $(pwd)
+	echo $pkgdir
+	echo ${pkgdir}/opt/${pkgname}
 	mkdir -p ${pkgdir}/opt/${pkgname}
 	cp -rf * ${pkgdir}/opt/${pkgname}
+	# mkdir -p /opt/${pkgname}
+	# cp -rf * /opt/${pkgname}
 	make install
 }
