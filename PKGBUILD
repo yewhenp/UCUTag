@@ -50,5 +50,5 @@ package() {
 	cd UCUTag
 	mkdir -p ${pkgdir}/opt/${pkgname}
 	cp -rf * ${pkgdir}/opt/${pkgname}
-	make PREFIX=/usr DESTDIR=${pkgdir} install
+	make install
 }
