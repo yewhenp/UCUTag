@@ -227,30 +227,22 @@ int TagFS::createRegularTags(strvec &tagNames) {
     return 0;
 }
 
-TagFS::TagFS() {
-    const char* env_p = std::getenv("UCUTAG_FILE_DIR");
-    std::string file_dir;
-    if (env_p == nullptr) {
-        file_dir = "/opt/ucutag/files";
-    } else {
-        file_dir = env_p;
-        if (file_dir.back() == '/') {
-            file_dir.pop_back();
-        }
-    }
-    if (!std::filesystem::exists(file_dir)) {
-        if (!std::filesystem::create_directories(file_dir)) {
+void TagFS::initialize(std::string &fs_files_dir) {
+    if (!std::filesystem::exists(fs_files_dir)) {
+        if (!std::filesystem::create_directories(fs_files_dir)) {
             std::cerr << "Unable to create dir" << std::endl;
             std::exit(-1);
         }
     }
-    int rc = chdir(file_dir.c_str());
+    int rc = chdir(fs_files_dir.c_str());
     if (rc < 0) {
         std::cerr << "Unable to enter dir" << std::endl;
         std::exit(-1);
     }
-    std::string mong_path = "ucutag" + file_dir;
+    std::string mong_path = "ucutag" + fs_files_dir;
     std::replace(mong_path.begin(), mong_path.end(), '/', '_');
+    std::replace(mong_path.begin(), mong_path.end(), '.', '_');
+
 
     client = mongocxx::client(uri);
     db = client[mong_path];
@@ -259,6 +251,8 @@ TagFS::TagFS() {
     inodeToTag = db["inodeToTag"];
     inodetoFilename = db["inodetoFilename"];
 }
+
+TagFS::TagFS() {}
 
 
 

@@ -8,10 +8,12 @@
 #include <fcntl.h>
 #include <sys/stat.h>
 #include <sys/file.h> 
+#include <filesystem>
 
 #include "tagfs_api.h"
 #include "string_utils.h"
 #include "TagFS.h"
+#include "arg_utils.h"
 
 namespace fs = std::filesystem;
 
@@ -761,12 +763,55 @@ static struct fuse_operations ucutag_oper = {
         .destroy	= ucutag_destroy,
         .access     = ucutag_access,
         .utimens    = ucutag_utimens,
-        .write_buf    = ucutag_write_buf,
-        .read_buf    = ucutag_read_buf,
-        .flock        = ucutag_flock
+        .write_buf  = ucutag_write_buf,
+        .read_buf   = ucutag_read_buf,
+        .flock      = ucutag_flock
 };
+
+
+char *to_char_arr(const std::string &str) {
+    char *pc = new char[str.size()+1];
+    std::strcpy(pc, str.c_str());
+    return pc;
+}
 
 int main(int argc, char *argv[]) {
     umask(0);
-    return fuse_main(argc, argv, &ucutag_oper, nullptr);
+
+    // parse arguments
+    auto args = parse_args(argc, argv);
+
+#ifdef DEBUG
+    std::cout << "name: " << args["name"] << std::endl;
+    std::cout << "mount: " << args["mount"] << std::endl;
+    std::cout << "debug: " << args["debug"] << std::endl;
+#endif
+
+    // find where to make files
+    const char* home_p = std::getenv("HOME");
+    if (home_p == nullptr) {
+        std::cerr << "Error: enviroment variable HOME is unset" << std::endl;
+        return 1;
+    } else {
+        std::string fs_files_dir = std::string(home_p) + "/.ucutag/" + args["name"];
+        if (fs_files_dir.back() == '/') {
+            fs_files_dir.pop_back();
+        }
+        tagFS.initialize(fs_files_dir);
+#ifdef DEBUG
+    std::cout << "Directory to store files: " << fs_files_dir  << std::endl;
+#endif
+    }
+
+
+    // create new argv for fuse
+    std::vector<std::string> argv_new_vec = {std::string(argv[0]), "-s", args["mount"]};
+     if (args["debug"] == "true") {
+        argv_new_vec.push_back("-f");
+    }
+    std::vector<char *> argv_new;
+    std::transform(argv_new_vec.begin(), argv_new_vec.end(), std::back_inserter(argv_new), to_char_arr);
+    argv_new.push_back(nullptr);
+
+    return fuse_main(argv_new.size()-1, &argv_new[0], &ucutag_oper, nullptr);
 }

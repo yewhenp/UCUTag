@@ -42,7 +42,6 @@ build() {
 	cd mongodb-bin
 	makepkg -si
 	cd ../UCUTag
-	git checkout dev
 	if [ -d build ]; then
 		rm -rf build
 	fi

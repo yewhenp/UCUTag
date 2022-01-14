@@ -60,7 +60,10 @@ private:
 
 
 public:
+    // std::string fs_files_dir{};
+
     TagFS();
+    void initialize(std::string &fs_files_dir);
     std::pair<tagvec, int> parseTags(const char *path);
     num_t getFileInode(tagvec &tags);
     std::string getFileRealPath(tagvec &tags);
