@@ -26,7 +26,7 @@ The benefits of this file system association is more natural and convenient way 
 ## How to get ucutag?
 ### Install with [AUR](https://aur.archlinux.org/packages/ucutag-git/)
 ```bash
-yay ucutag
+yay ucutag-git
 ```
 
 ### Compile from sources
