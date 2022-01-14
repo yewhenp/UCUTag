@@ -347,9 +347,55 @@ static int ucutag_rename(const char *from, const char *to) {
         // Rename tags one by one
         return 0;
     }
-    if ((status_to == 0 && !(tag_vec_to.back() == tag_vec_from.back())) || (status_to != 0 && tag_vec_to.size() < tag_name_to.size() - 1)) {
+//    if ((status_to == 0 && !(tag_vec_to.back() == tag_vec_from.back())) || (status_to != 0 && tag_vec_to.size() < tag_name_to.size() - 1)) {
+//        errno = EEXIST;
+//        return -errno;
+//    }
+    if (status_to != 0 && tag_vec_to.size() < tag_name_to.size() - 1) {
         errno = EEXIST;
         return -errno;
+    }
+    if (status_to == 0 && !(tag_vec_to.back() == tag_vec_from.back())) {
+#ifdef DEBUG
+        std::cout << " >>> rename: using great idea" << std::endl;
+#endif
+        if (tag_vec_to.back().type == TAG_TYPE_FILE) {
+            num_t file_inode_to = tagFS.getFileInode(tag_vec_to);
+            if (file_inode_to == num_t(-1)) {
+                errno = ENOENT;
+                return -errno;
+            }
+            num_t file_inode_from = tagFS.getFileInode(tag_vec_from);
+            if (file_inode_from == num_t(-1)) {
+                errno = ENOENT;
+                return -errno;
+            }
+            std::string file_path_to = tagFS.getFileRealPath(tag_vec_to);
+            std::string file_path_from = tagFS.getFileRealPath(tag_vec_from);
+
+            if (tagFS.deleteFileMetaData(tag_vec_from, file_inode_from) != 0) {
+                errno = ENOENT;
+                return -errno;
+            }
+
+            auto res = unlink(file_path_to.c_str());
+            if (res == -1)
+                return -errno;
+            res = link(file_path_from.c_str(), file_path_to.c_str());
+            if (res == -1)
+                return -errno;
+            res = unlink(file_path_from.c_str());
+            if (res == -1)
+                return -errno;
+#ifdef DEBUG
+            std::cout << " >>> rename: done great idea" << std::endl;
+#endif
+            return 0;
+
+        } else {
+            errno = EEXIST;
+            return -errno;
+        }
     }
 
     auto inode_from = *inodes_from.begin();
@@ -389,6 +435,14 @@ static int ucutag_link(const char *from, const char *to) {
 
     auto[tag_vec_from, status_from] = tagFS.parseTags(from);
     if (status_from != 0) return -errno;
+
+    tag_vec_to.push_back({TAG_TYPE_FILE, split(to, "/").back()});
+
+#ifdef DEBUG
+    std::cout << " >>> link tag_vec_to: " << tag_vec_to << std::endl;
+    std::cout << " >>> link tag_vec_from: " << tag_vec_from << std::endl;
+#endif
+
     std::string link_file_path = tagFS.getFileRealPath(tag_vec_from);
 
     num_t new_inode = tagFS.getNewInode();
