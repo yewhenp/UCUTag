@@ -1,3 +1,4 @@
+alias mktag=mkdir
 touch BMW Audi Mercedes
 mktag car_makers
 touch Yamaha Honda Kawasaki
