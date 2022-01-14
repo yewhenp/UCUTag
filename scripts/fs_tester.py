@@ -131,7 +131,7 @@ if __name__ == '__main__':
     parser.add_argument("--tree-height", dest="tree_height", default=2, type=int)
     parser.add_argument("--tree-dir-width", dest="tree_dir_width", default=2, type=int)
     parser.add_argument("--tree-file-width", dest="tree_file_width", default=5, type=int)
-    parser.add_argument("--fs-type", dest="fs_type", default="ext4", type=str)
+    parser.add_argument("--fs-type", dest="fs_type", default="ext2", type=str)
     args = parser.parse_args()
 
     fs_tester = FSTester(args.dir_root, args.tree_height, args.tree_dir_width, args.tree_file_width, args.fs_type)

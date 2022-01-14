@@ -38,8 +38,8 @@ def main():
         tag_mem_data = json.load(file)
 
 
-    tree_heights = [3, 4, 5, 6]
-    tree_file_widths = [5, 6, 7, 8]
+    tree_heights = [2, 3, 4, 5]
+    tree_file_widths = [4, 5, 6, 7, 8]
     tree_heights_all = []
     tree_file_widths_all = []
     for tree_height in tree_heights:

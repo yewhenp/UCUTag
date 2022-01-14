@@ -12,8 +12,8 @@ def main():
 
     create_dir_time_all, create_files_time_all, access_files_time_all, \
         search_files_time_all, delete_files_time_all, delete_dirs_time_all = [], [], [], [], [], []
-    tree_heights = [3, 4, 5, 6]
-    tree_file_widths = [5, 6, 7, 8]
+    tree_heights = [2, 3, 4, 5]
+    tree_file_widths = [4, 5, 6, 7, 8]
     for tree_height in tree_heights:
         for tree_file_width in tree_file_widths:
             print(f"Running with tree_height = {tree_height} and tree_file_width = {tree_file_width}")
