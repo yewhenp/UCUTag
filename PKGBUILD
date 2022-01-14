@@ -46,18 +46,24 @@ build() {
 	if [ -d build ]; then
 		rm -rf build
 	fi
-	bash compile.sh
+	# bash compile.sh
+	mkdir -p build
+	(
+		cd build
+		cmake -G"Unix Makefiles" -DCMAKE_BUILD_TYPE=${1-Release} -S ..
+		make -j4 X11INC=/usr/include/X11 X11LIB=/usr/lib/X11 VERBOSE=1
+	)
+
 }
 
 package() {
-	cd UCUTag/build
-	echo ">>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>${pkgname}"
-	echo $(pwd)
-	echo $pkgdir
-	echo ${pkgdir}/opt/${pkgname}
-	mkdir -p ${pkgdir}/opt/${pkgname}
-	cp -rf * ${pkgdir}/opt/${pkgname}
-	# mkdir -p /opt/${pkgname}
-	# cp -rf * /opt/${pkgname}
-	make install
+	cd UCUTag
+	echo "Copying project to /opt/$pkgname"
+	sudo mkdir -p /opt/${pkgname}
+	sudo cp -rf * /opt/${pkgname}
+	cd build
+	echo "Installing $pkgname"
+	sudo make install
+	echo "Enabling mongodb service"
+	sudo systemctl enable --now mongodb.service
 }
