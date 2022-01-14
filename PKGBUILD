@@ -1,5 +1,5 @@
 # Maintainer: Pavlo Hilei <p.hilei@ucu.edu.ua>
-pkgname=ucutag
+pkgname=ucutag-git
 pkgver=1.0
 pkgrel=1
 epoch=
