@@ -788,21 +788,30 @@ int main(int argc, char *argv[]) {
 #endif
 
     // find where to make files
+    // find where to make files
     const char* home_p = std::getenv("HOME");
     if (home_p == nullptr) {
         std::cerr << "Error: enviroment variable HOME is unset" << std::endl;
         return 1;
+    }
+    std::string fs_files_dir = std::string(home_p) + "/.ucutag/";
+    if (!args["remove"].empty()) {
+        fs_files_dir += args["remove"];
     } else {
-        std::string fs_files_dir = std::string(home_p) + "/.ucutag/" + args["name"];
-        if (fs_files_dir.back() == '/') {
-            fs_files_dir.pop_back();
-        }
-        tagFS.initialize(fs_files_dir);
+        fs_files_dir += args["name"];
+    }
+    if (fs_files_dir.back() == '/') {
+        fs_files_dir.pop_back();
+    }
+    tagFS.initialize(fs_files_dir);
 #ifdef DEBUG
     std::cout << "Directory to store files: " << fs_files_dir  << std::endl;
 #endif
-    }
 
+    if (!args["remove"].empty()) {
+        tagFS.dropFS();
+        return 0;
+    }
 
     // create new argv for fuse
     std::vector<std::string> argv_new_vec = {std::string(argv[0]), "-s", args["mount"]};

@@ -1,7 +1,9 @@
 #include <cstdlib>
 #include <filesystem>
+#include <filesystem>
 
 #include "TagFS.h"
+namespace fs = std::filesystem;
 
 std::pair<tagvec, int> TagFS::parseTags(const char *path) {
     tagvec res{};
@@ -227,7 +229,8 @@ int TagFS::createRegularTags(strvec &tagNames) {
     return 0;
 }
 
-void TagFS::initialize(std::string &fs_files_dir) {
+void TagFS::initialize(std::string &files_dir) {
+    fs_files_dir = files_dir;
     if (!std::filesystem::exists(fs_files_dir)) {
         if (!std::filesystem::create_directories(fs_files_dir)) {
             std::cerr << "Unable to create dir" << std::endl;
@@ -250,6 +253,18 @@ void TagFS::initialize(std::string &fs_files_dir) {
     tagToInode = db["tagToInode"];
     inodeToTag = db["inodeToTag"];
     inodetoFilename = db["inodetoFilename"];
+}
+
+int TagFS::dropFS() {
+#ifdef DEBUG
+    std::cout << "Removing " << fs_files_dir << std::endl;
+#endif
+    if (!std::filesystem::remove_all(fs_files_dir)) {
+        std::cerr << "Error: could not delete " << fs_files_dir << std::endl;
+        return 1;
+    }
+    db.drop();
+    return 0;
 }
 
 TagFS::TagFS() {}
