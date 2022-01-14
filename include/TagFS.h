@@ -37,6 +37,7 @@ private:
     const std::string SET      = "$set";
     const std::string INODES   = "inodes";
     const std::string PUSH     = "$push";
+    const std::string ADD_TO_SET = "$addToSet";
     const std::string PULL     = "$pull";
     const std::string IN       = "$in";
     const std::string TAGS     = "tags";
@@ -62,16 +63,19 @@ private:
 public:
     TagFS();
     std::pair<tagvec, int> parseTags(const char *path);
-    num_t getFileInode(tagvec &tags);
-    std::string getFileRealPath(tagvec &tags);
-    inodeset getInodesFromTags(tagvec &tags);
+    num_t getFileInode(numvec &tags);
+    std::string getFileRealPath(numvec &tags);
+    inodeset getInodesFromTags(numvec &tags);
     num_t getNewInode();
-    int createNewFileMetaData(tagvec &tags, num_t newInode);
-    int deleteFileMetaData(tagvec &tags, num_t fileInode);
-    int deleteRegularTags(tagvec &tags);
+    int createNewFileMetaData(const numvec &tagIds, const strvec &tagNames, num_t newInode);
+    int deleteFileMetaData(const numvec &tagIds, num_t fileInode);
+//    int deleteRegularTags(tagvec &tags);
+    int deleteRegularTag(tag_t tag);
     int createRegularTags(strvec &tagNames);
     int renameFileTag(num_t inode, const std::string &oldTagName, const std::string &newTagName);
-    std::pair<tagvec, int> prepareFileCreation(const char *path);
+    std::tuple<numvec, strvec, int> prepareFileCreation(const char *path);
+    numvec convertToTagIds(const char *path);
+    numvec convertToTagIds(const strvec &tagNames);
 
 public:
 ////////////////////////////////////////////  tags collection manipulation  ///////////////////////////////////////////
@@ -81,25 +85,31 @@ public:
     int tagsUpdate(num_t tagId, tag_t newTag);                            // -1 if error else 0
     tag_t tagsGet(num_t tagId);                                           // {} if error
     int tagsDelete(num_t tagId);                                          // -1 if error else 0
-
+    int tagsExist(const numvec &tagIds);
+    num_t tagsCount(const numvec &tagIds);
 //////////////////////////////////////////  tagToInodes collection manipulation  /////////////////////////////////////////////
     strvec tagNamesByTagType(num_t type);
 
     int tagToInodeInsert(num_t tagId, num_t inodes);
     int tagToInodeUpdate(num_t tagId, const numvec &inodes);
+    int tagToInodeUpdateMany(const numvec &tagIds, num_t inode);
     numvec tagToInodeGet(num_t tagId);
     int tagToInodeDelete(num_t tagId);
     int tagToInodeAddInode(num_t tagId, num_t inode);
+    int tagToInodeDeleteMany(const numvec &tagIds, num_t inode);
     int tagToInodeDeleteInodes(const numvec &inodes);
     bool tagToInodeFind(num_t tagId); // just check if it exists
 
 //////////////////////////////////////////  InodeToTag collection manipulation  /////////////////////////////////////////////
     int inodeToTagInsert(num_t inode, num_t tagsIds);
+//    int inodeToTagInsertMany(num_t inode, numvec tagsIds);
     int inodeToTagUpdate(num_t inode, const numvec &tagsIds);
     numvec inodeToTagGet(num_t inode);
     int inodeToTagDelete(num_t inode);
     int inodeToTagAddTagId(num_t inode, num_t tagid);
     int inodeToTagDeleteTags(const numvec &tagIds);
+    int inodeToTagDeleteMany(const numvec &inodes, num_t tagId);
+    int inodeToTagUpdateMany(const numvec &inodes, num_t tagIdFrom, num_t tagIdTo);
     bool inodeToTagFind(num_t inode); // just check if it exists
 
     //////////////////////////////////////////  InodeToTag collection manipulation  /////////////////////////////////////////////

@@ -6,11 +6,11 @@ mv BMW car_makers/ && mv Audi car_makers/ && mv Mercedes car_makers/
 mv Yamaha moto_makers/ && mv Kawasaki moto_makers/
 mv Honda car_makers/moto_makers/
 
-cls car_makers
-cls moto_makers
-cls car_makers/moto_makers
-cls moto_makers/car_makers
-cls @
+ls car_makers
+ls moto_makers
+ls car_makers/moto_makers
+ls moto_makers/car_makers
+ls @
 
 cp ../README.md .
 mkdir project
