@@ -55,14 +55,21 @@ export UCUTAG_FILE_DIR enviroment variable to use it as a "trash" directory, whe
 
 **NOTE!** - mountpoint should be an absolute path
 
-Mount file system:
+Mount file system with name:
 ```bash
-ucutag /path/to/mountpoint
+ucutag --name myfs --mount /path/to/mountpoint -d 
 ```
 
-Umount file system:
+**NOTE!** running with -d makes ucutag not exit immediately, and wait for all debug messages (if compiled in Debug mode). Currently please run only in debug, mode, due to some bugs. You can enter mountpoint from other terminal. Stop with \<Ctrl-C\>. You don't have to umount after running in debug.
+
+Remove file system with some name (all files will be lost):
 ```bash
-fusermount -u /path/to/mountpoint
+ucutag -r myfs
+```
+
+Umount file system ():
+```bash
+ucutag -u /path/to/mountpoint
 ```
 
 Creating files, tags, creating associations example: (./presentation_scenario/scenario2)

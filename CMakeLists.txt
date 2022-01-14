@@ -59,7 +59,7 @@ set(CMAKE_MODULE_PATH ${CMAKE_MODULE_PATH} ${CMAKE_CURRENT_SOURCE_DIR}/cmake)
 find_package(FUSE REQUIRED)
 find_package(mongocxx REQUIRED)
 find_package(bsoncxx REQUIRED)
-find_package(Boost REQUIRED)
+find_package(Boost COMPONENTS program_options REQUIRED )
 
 
 # Includes
@@ -71,9 +71,9 @@ include_directories(include)
 
 # main executable
 add_executable(${EXECUTABLE_NAME} 
-				src/tagfs_api.cpp src/TagFS.cpp src/string_utils.cpp src/typedefs.cpp 
+				src/tagfs_api.cpp src/TagFS.cpp src/string_utils.cpp src/typedefs.cpp src/arg_utils.cpp
 				
-				include/TagFS.h include/string_utils.h include/tagfs_api.h include/typedefs.h )
+				include/TagFS.h include/string_utils.h include/tagfs_api.h include/typedefs.h include/arg_utils.h)
 
 
 # linking

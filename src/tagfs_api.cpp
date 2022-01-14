@@ -8,10 +8,12 @@
 #include <fcntl.h>
 #include <sys/stat.h>
 #include <sys/file.h> 
+#include <filesystem>
 
 #include "tagfs_api.h"
 #include "string_utils.h"
 #include "TagFS.h"
+#include "arg_utils.h"
 
 namespace fs = std::filesystem;
 
@@ -125,6 +127,10 @@ static int ucutag_opendir(const char *path, struct fuse_file_info *fi) {
 
     // fill and save pointer to dirent
     auto [tags, status] = tagFS.parseTags(path);
+#ifdef DEBUG
+    std::cerr << " >>> opendir status: " << status << " tags " << tags << std::endl;
+#endif
+
     if (status != 0) return -errno;
 
     d->inodes = std::move(tagFS.getInodesFromTags(tags));
@@ -291,7 +297,10 @@ static int ucutag_rmdir(const char *path) {
 #ifdef DEBUG
     std::cout << " >>> rmdir: " << path << std::endl;
 #endif
-
+    auto splitted = split(path, "/");
+    if (splitted.size() > 1) {
+        return 0;
+    }
     auto [tag_vec, status] = tagFS.parseTags(path);
     if (status != 0) return -errno;
     return tagFS.deleteRegularTags(tag_vec);
@@ -347,9 +356,55 @@ static int ucutag_rename(const char *from, const char *to) {
         // Rename tags one by one
         return 0;
     }
-    if ((status_to == 0 && !(tag_vec_to.back() == tag_vec_from.back())) || (status_to != 0 && tag_vec_to.size() < tag_name_to.size() - 1)) {
+//    if ((status_to == 0 && !(tag_vec_to.back() == tag_vec_from.back())) || (status_to != 0 && tag_vec_to.size() < tag_name_to.size() - 1)) {
+//        errno = EEXIST;
+//        return -errno;
+//    }
+    if (status_to != 0 && tag_vec_to.size() < tag_name_to.size() - 1) {
         errno = EEXIST;
         return -errno;
+    }
+    if (status_to == 0 && !(tag_vec_to.back() == tag_vec_from.back())) {
+#ifdef DEBUG
+        std::cout << " >>> rename: using great idea" << std::endl;
+#endif
+        if (tag_vec_to.back().type == TAG_TYPE_FILE) {
+            num_t file_inode_to = tagFS.getFileInode(tag_vec_to);
+            if (file_inode_to == num_t(-1)) {
+                errno = ENOENT;
+                return -errno;
+            }
+            num_t file_inode_from = tagFS.getFileInode(tag_vec_from);
+            if (file_inode_from == num_t(-1)) {
+                errno = ENOENT;
+                return -errno;
+            }
+            std::string file_path_to = tagFS.getFileRealPath(tag_vec_to);
+            std::string file_path_from = tagFS.getFileRealPath(tag_vec_from);
+
+            if (tagFS.deleteFileMetaData(tag_vec_from, file_inode_from) != 0) {
+                errno = ENOENT;
+                return -errno;
+            }
+
+            auto res = unlink(file_path_to.c_str());
+            if (res == -1)
+                return -errno;
+            res = link(file_path_from.c_str(), file_path_to.c_str());
+            if (res == -1)
+                return -errno;
+            res = unlink(file_path_from.c_str());
+            if (res == -1)
+                return -errno;
+#ifdef DEBUG
+            std::cout << " >>> rename: done great idea" << std::endl;
+#endif
+            return 0;
+
+        } else {
+            errno = EEXIST;
+            return -errno;
+        }
     }
 
     auto inode_from = *inodes_from.begin();
@@ -389,6 +444,14 @@ static int ucutag_link(const char *from, const char *to) {
 
     auto[tag_vec_from, status_from] = tagFS.parseTags(from);
     if (status_from != 0) return -errno;
+
+    tag_vec_to.push_back({TAG_TYPE_FILE, split(to, "/").back()});
+
+#ifdef DEBUG
+    std::cout << " >>> link tag_vec_to: " << tag_vec_to << std::endl;
+    std::cout << " >>> link tag_vec_from: " << tag_vec_from << std::endl;
+#endif
+
     std::string link_file_path = tagFS.getFileRealPath(tag_vec_from);
 
     num_t new_inode = tagFS.getNewInode();
@@ -700,12 +763,70 @@ static struct fuse_operations ucutag_oper = {
         .destroy	= ucutag_destroy,
         .access     = ucutag_access,
         .utimens    = ucutag_utimens,
-        .write_buf    = ucutag_write_buf,
-        .read_buf    = ucutag_read_buf,
-        .flock        = ucutag_flock
+        .write_buf  = ucutag_write_buf,
+        .read_buf   = ucutag_read_buf,
+        .flock      = ucutag_flock
 };
+
+
+char *to_char_arr(const std::string &str) {
+    char *pc = new char[str.size()+1];
+    std::strcpy(pc, str.c_str());
+    return pc;
+}
 
 int main(int argc, char *argv[]) {
     umask(0);
-    return fuse_main(argc, argv, &ucutag_oper, nullptr);
+
+    // parse arguments
+    auto args = parse_args(argc, argv);
+
+#ifdef DEBUG
+    std::cout << "name: " << args["name"] << std::endl;
+    std::cout << "mount: " << args["mount"] << std::endl;
+    std::cout << "debug: " << args["debug"] << std::endl;
+#endif
+
+    if (args["umount"] == "true") {
+        std::string umount = "fusermount -u " + args["mount"];
+        system(umount.c_str());
+        return 0;
+    }
+
+    // find where to make files
+    // find where to make files
+    const char* home_p = std::getenv("HOME");
+    if (home_p == nullptr) {
+        std::cerr << "Error: enviroment variable HOME is unset" << std::endl;
+        return 1;
+    }
+    std::string fs_files_dir = std::string(home_p) + "/.ucutag/";
+    if (!args["remove"].empty()) {
+        fs_files_dir += args["remove"];
+    } else {
+        fs_files_dir += args["name"];
+    }
+    if (fs_files_dir.back() == '/') {
+        fs_files_dir.pop_back();
+    }
+    tagFS.initialize(fs_files_dir);
+#ifdef DEBUG
+    std::cout << "Directory to store files: " << fs_files_dir  << std::endl;
+#endif
+
+    if (!args["remove"].empty()) {
+        tagFS.dropFS();
+        return 0;
+    }
+
+    // create new argv for fuse
+    std::vector<std::string> argv_new_vec = {std::string(argv[0]), "-s", args["mount"]};
+     if (args["debug"] == "true") {
+        argv_new_vec.push_back("-f");
+    }
+    std::vector<char *> argv_new;
+    std::transform(argv_new_vec.begin(), argv_new_vec.end(), std::back_inserter(argv_new), to_char_arr);
+    argv_new.push_back(nullptr);
+
+    return fuse_main(argv_new.size()-1, &argv_new[0], &ucutag_oper, nullptr);
 }
