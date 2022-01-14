@@ -1,4 +1,4 @@
-pkgbase = ucutag
+pkgbase = ucutag-git
 	pkgdesc = This is fuse based tag-oriented filesystem that uses MongoDB as backend
 	pkgver = 1.0.r67.923add5
 	pkgrel = 1
