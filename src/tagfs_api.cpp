@@ -42,6 +42,9 @@ static int ucutag_getattr(const char *path, struct stat *stbuf) {
     }
 
     if ( tag_vec.back().type == TAG_TYPE_REGULAR ) {
+#ifdef DEBUG
+        std::cout << " >>> getattr TAG_TYPE_REGULAR" << std::endl;
+#endif
         fillTagStat(stbuf);
         return 0;
     }
@@ -74,6 +77,7 @@ static int ucutag_access(const char *path, int mask) {
 
     // return 0 for directory
     if (tag_vec.back().type == TAG_TYPE_REGULAR) {
+        mask = R_OK | W_OK | X_OK;
         return 0;
     }
     std::string file_path = tagFS.getFileRealPath(tag_vec);
@@ -151,10 +155,12 @@ static int ucutag_readdir(const char *path, void *buf, fuse_fill_dir_t filler,
     // move entry on offset
     std::advance(d->entry, offset);
 
+    bool flag = true;
     while (d->entry != d->inodes.end()) {
         struct stat st{};
         auto filename = tagFS.inodetoFilenameGet(*d->entry);
         if (filename == "@"){
+            flag = false;
             fillTagStat(&st);
             for(auto& nonFileTagName: tagFS.tagNamesByTagType(TAG_TYPE_REGULAR)){
 #ifdef DEBUG
@@ -170,6 +176,24 @@ static int ucutag_readdir(const char *path, void *buf, fuse_fill_dir_t filler,
 
 
         d->entry++;
+    }
+
+#ifdef DEBUG
+    std::cout << " >>> readdir - inserting dirs " << std::endl;
+#endif
+    if (flag) {
+        auto splitted = split(path, "/");
+        auto tags = tagFS.tagNamesByTagType(TAG_TYPE_REGULAR);
+        for (auto& nonFileTagName : tags) {
+            if (!std::count(splitted.begin(), splitted.end(), nonFileTagName)) {
+#ifdef DEBUG
+                std::cout << " >>> readdir - inserting tag " << nonFileTagName << std::endl;
+#endif
+                struct stat st{};
+                fillTagStat(&st);
+                filler(buf, nonFileTagName.c_str(), &st, 0);
+            }
+        }
     }
 
     return status;
