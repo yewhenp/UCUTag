@@ -24,7 +24,7 @@ The benefits of this file system association is more natural and convenient way 
 - Speed. To find file on hierarchical file system you'll have to goo through all files on the computer, which takes linear time (O(n)), but on tag file system, this takes ~ O(log(n)) time on out file system (assuming you're using ext4, that uses B+ tree to find files in directory). 
 
 ## How to get ucutag?
-### Install with [AUR](https://aur.archlinux.org/packages/ucutag/)
+### Install with [AUR](https://aur.archlinux.org/packages/ucutag-git/)
 ```bash
 yay ucutag
 ```
