@@ -2,9 +2,10 @@
 
 
 std::map<std::string, std::string> parse_args(int argc, char **argv) {
-    std::string usage = "USAGE:\n    ucutag  [ -n--name fs_name=main ] [--help ] [-m|--mount] mountpoint";
+    std::string usage = "USAGE:\n    ucutag [-r|--remove] [ -n--name fs_name=main ] [--help ] [-u|--umount] [-m|--mount] mountpoint";
     std::map<std::string, std::string> result{};
     bool debug;
+    bool umount;
     // parse arguments
     try {
         po::options_description generic("Generic options");
@@ -13,6 +14,7 @@ std::map<std::string, std::string> parse_args(int argc, char **argv) {
                 ("version,v", "program version")
                 ("name,n", po::value<std::string>(), "Name of file system")
                 ("debug,d", po::bool_switch(&debug), "Debug. Compile with Debug to see debug messages")
+                ("umount,u", po::bool_switch(&umount), "Umount filesystem")
                 ("remove,r", po::value<std::string>(), "Remove file system by name");
 
         po::options_description hidden("Hidden options");
@@ -62,11 +64,17 @@ std::map<std::string, std::string> parse_args(int argc, char **argv) {
         result["debug"] = debug ? "true" : "false";
 
         if (!vm.count("name")) {
-            if (!vm.count("remove"))
+            if (!vm.count("remove") && !umount)
                 std::cout << "Warning: Didn't specify fs name (-n|--name): using default: main" << std::endl;
             result["name"] = "main";
         } else {
             result["name"] = vm["name"].as<std::string>();
+        }
+
+        if (umount) {
+            result["umount"] = "true";
+        } else {
+            result["umount"] = "false";
         }
 
         

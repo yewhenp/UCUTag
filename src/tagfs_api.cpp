@@ -787,6 +787,12 @@ int main(int argc, char *argv[]) {
     std::cout << "debug: " << args["debug"] << std::endl;
 #endif
 
+    if (args["umount"] == "true") {
+        std::string umount = "fusermount -u " + args["mount"];
+        system(umount.c_str());
+        return 0;
+    }
+
     // find where to make files
     // find where to make files
     const char* home_p = std::getenv("HOME");
