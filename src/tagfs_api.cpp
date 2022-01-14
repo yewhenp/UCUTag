@@ -125,6 +125,10 @@ static int ucutag_opendir(const char *path, struct fuse_file_info *fi) {
 
     // fill and save pointer to dirent
     auto [tags, status] = tagFS.parseTags(path);
+#ifdef DEBUG
+    std::cerr << " >>> opendir status: " << status << " tags " << tags << std::endl;
+#endif
+
     if (status != 0) return -errno;
 
     d->inodes = std::move(tagFS.getInodesFromTags(tags));
@@ -291,7 +295,10 @@ static int ucutag_rmdir(const char *path) {
 #ifdef DEBUG
     std::cout << " >>> rmdir: " << path << std::endl;
 #endif
-
+    auto splitted = split(path, "/");
+    if (splitted.size() > 1) {
+        return 0;
+    }
     auto [tag_vec, status] = tagFS.parseTags(path);
     if (status != 0) return -errno;
     return tagFS.deleteRegularTags(tag_vec);
