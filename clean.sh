@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 
 echo "Umounting ${1-mountpoint}"
-fusermount -u ${1-mountpoint}
+fusermount -uz ${1-mountpoint}
 
 if [[ -n "${UCUTAG_FILE_DIR}" ]]; then
     echo "Cleaning ${UCUTAG_FILE_DIR}"
