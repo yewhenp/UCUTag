@@ -324,7 +324,7 @@ static int ucutag_rename(const char *from, const char *to) {
 
 //    auto[tag_vec_from, status_from] = tagFS.parseTags(from);
 //    if (status_from != 0) return -errno;
-    auto tagNamesFrom = split(to, "/");
+    auto tagNamesFrom = split(from, "/");
     auto tagIdsFrom = tagFS.convertToTagIds(tagNamesFrom);
     auto statusFrom = tagFS.tagsExist(tagIdsFrom);
     if (statusFrom != 0) {
