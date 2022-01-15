@@ -10,6 +10,13 @@ mv Honda car_makers/moto_makers/
 cls @
 cls $(ls @)
 
+# GUI:
+# go through mountpoint
+# create file in tag
+# create new tag
+# mv file to new tag
+# mv file to this+new tag
+
 cp ../../README.md .
 mktag project
 cp ../../CMakeLists.txt ./project/CMakeLists.txt && mv README.md project/
